@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
 
@@ -66,9 +67,14 @@ type certificatePolicy struct {
 	IssuerParameters          issuerParameters          `yaml:"issuer_parameters"`
 }
 
+type certificateAttributes struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type certificateCreateParameters struct {
-	CertificatePolicy certificatePolicy `yaml:"certificate_policy"`
-	Tags              map[string]string `yaml:"tags"`
+	CertificateAttributes certificateAttributes `yaml:"certificate_attributes"`
+	CertificatePolicy     certificatePolicy     `yaml:"certificate_policy"`
+	Tags                  map[string]string     `yaml:"tags"`
 }
 
 type config struct {
@@ -88,6 +94,8 @@ func defaultConfig() []byte {
 	  maxage: 30  # days
 	vault_name: kvc-kv-01-dev-wus2-bbk
 	certificate_create_parameters:
+	  certificate_attributes:
+	    enabled: false
 	  certificate_policy:
 		key_properties:
 		  exportable: true
@@ -238,6 +246,10 @@ func editConfig(defaultConfig []byte, configPath string, editor string) error {
 	return nil
 }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func createKVCertCreateParamsFromCfg(cfgCCP certificateCreateParameters) keyvault.CertificateCreateParameters {
 
 	var la []keyvault.LifetimeAction
@@ -263,7 +275,9 @@ func createKVCertCreateParamsFromCfg(cfgCCP certificateCreateParameters) keyvaul
 	}
 
 	ccp := keyvault.CertificateCreateParameters{
-		CertificateAttributes: nil,
+		CertificateAttributes: &keyvault.CertificateAttributes{
+			Enabled: &cfgCCP.CertificateAttributes.Enabled,
+		},
 		CertificatePolicy: &keyvault.CertificatePolicy{
 			ID: nil,
 			KeyProperties: &keyvault.KeyProperties{
@@ -297,33 +311,75 @@ func createKVCertCreateParamsFromCfg(cfgCCP certificateCreateParameters) keyvaul
 	return ccp
 }
 
-func overwriteKVCertCreateParamsWithCreateFlags(ccp *keyvault.CertificateCreateParameters) {
+func overwriteKVCertCreateParamsWithCreateFlags(
+	ccp *keyvault.CertificateCreateParameters,
+	flagSubject string,
+	flagSans []string,
+	flagTagsMap map[string]*string,
+	flagValidityInMonths int32,
+	flagEnabled bool) {
+
+	if flagSubject != "" {
+		ccp.CertificatePolicy.X509CertificateProperties.Subject = &flagSubject
+	}
+	if len(flagSans) > 0 {
+		ccp.CertificatePolicy.X509CertificateProperties.SubjectAlternativeNames.DNSNames = &flagSans
+	}
+	if len(flagTagsMap) > 0 {
+		ccp.Tags = flagTagsMap
+	}
+	if flagValidityInMonths != 0 {
+		ccp.CertificatePolicy.X509CertificateProperties.ValidityInMonths = &flagValidityInMonths
+	}
+	// NOTE: if not passed, then this resolves as false
+	// and we get the config version
+	if flagEnabled != false {
+		ccp.CertificateAttributes.Enabled = &flagEnabled
+	}
 
 }
 
 func certificateCreate(
 	sk *sugarkane.SugarKane,
-	vaultName string,
+	cfgVaultName string,
 	cfgCertificateCreateParams certificateCreateParameters,
-	id string,
-	subject string,
-	sans []string,
-	tags []string,
-	validity int32,
-	disabled bool,
+	flagVaultName string,
+	flagID string,
+	flagSubject string,
+	flagSans []string,
+	flagTags []string,
+	flagValidityInMonths int32,
+	flagEnabled bool,
 ) error {
-	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
-	overwriteKVCertCreateParamsWithCreateFlags(&params)
 
-	baseURL := "https://" + vaultName + ".vault.azure.net"
+	// TODO: check if overriding existing
+	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
+
+	flagTagsMap := make(map[string]*string)
+	for _, kv := range flagTags {
+		keyValue := strings.Split(kv, "=")
+		if len(keyValue) != 2 {
+			return errors.Errorf("tags should be formatted key=value : #%v", kv)
+		}
+		flagTagsMap[keyValue[0]] = &(keyValue[1])
+	}
+	overwriteKVCertCreateParamsWithCreateFlags(
+		&params, flagSubject, flagSans, flagTagsMap, flagValidityInMonths, flagEnabled)
+
 	kvClient := keyvault.New()
 	var err error
 	kvClient.Authorizer, err = kvauth.NewAuthorizerFromCLI()
 
+	vaultName := cfgVaultName
+	if flagVaultName != "" {
+		vaultName = flagVaultName
+	}
+	baseURL := "https://" + vaultName + ".vault.azure.net"
+
 	result, err := kvClient.CreateCertificate(
 		context.Background(),
 		baseURL,
-		id,
+		flagID,
 		params,
 	)
 
@@ -332,14 +388,14 @@ func certificateCreate(
 		sk.Errorw(
 			"certificate creation error",
 			"err", err,
-			"id", id,
+			"id", flagID,
 		)
 		return err
 	}
 
 	sk.Infow(
 		"certificate created",
-		"id", id,
+		"id", flagID,
 		"result", result,
 	)
 	return nil
@@ -352,6 +408,7 @@ func run() error {
 	app.HelpFlag.Short('h')
 	defaultConfigPath := "~/.config/kvcrutch.yaml"
 	appConfigPathFlag := app.Flag("config-path", "config filepath").Short('c').Default(defaultConfigPath).String()
+	appVaultNameFlag := app.Flag("vault-name", "Key Vault Name").Short('v').String()
 
 	configCmd := app.Command("config", "config commands")
 	configCmdEditCmd := configCmd.Command("edit", "Edit or create configuration file. Uses $EDITOR as a fallback")
@@ -363,8 +420,8 @@ func run() error {
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
 	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "subject alternative DNS name").Strings()
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "tags to add in key=value form").Short('t').Strings()
-	certificateCreateCmdValidityFlag := certificateCreateCmd.Flag("validity", "validity in months").Short('v').Int32()
-	certificateCreateCmdDisabledFlag := certificateCreateCmd.Flag("disabled", "disable certificate on creation").Short('d').Bool()
+	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
+	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('d').Bool()
 
 	versionCmd := app.Command("version", "print kvcrutch build and version information")
 
@@ -407,7 +464,7 @@ func run() error {
 		}
 	}
 
-	lumberjackLogger, vaultName, cfgCertCreateParams, cfgParseErr := parseConfig(configBytes)
+	lumberjackLogger, cfgVaultName, cfgCertCreateParams, cfgParseErr := parseConfig(configBytes)
 	if cfgParseErr != nil {
 		sugarkane.Printw(os.Stderr,
 			"Can't parse config",
@@ -426,14 +483,15 @@ func run() error {
 	case certificateCreateCmd.FullCommand():
 		return certificateCreate(
 			sk,
-			vaultName,
+			cfgVaultName,
 			cfgCertCreateParams,
+			*appVaultNameFlag,
 			*certificateCreateCmdIDFlag,
 			*certificateCreateCmdSubjectFlag,
 			*certificateCreateCmdSANsFlag,
 			*certificateCreateCmdTagsFlag,
-			*certificateCreateCmdValidityFlag,
-			*certificateCreateCmdDisabledFlag,
+			*certificateCreateCmdValidityInMonthsFlag,
+			*certificateCreateCmdEnabledFlag,
 		)
 	default:
 		err = errors.Errorf("Unknown command: %#v\n", cmd)
