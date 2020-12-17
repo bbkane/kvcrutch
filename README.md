@@ -26,3 +26,11 @@ go run . certificate create \
     --tag 'bkey=bvalue' \
     --validity 12 \
     --enabled
+
+# TODO
+
+- embed config into a static package... VSCode isn't respecting my spaces instead of tabs within the string
+- add goreleaser
+- make other commands (cert new-version, cert list)
+- document config better
+

@@ -13,11 +13,11 @@ import (
 	"runtime"
 	"strings"
 
-	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
+	"github.com/bbkane/kvcrutch/sugarkane"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/keyvault/keyvault"
+	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/bbkane/kvcrutch/sugarkane"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -99,9 +99,11 @@ func defaultConfig() []byte {
 	  maxbackups: 0
 	  maxage: 30  # days
 	vault_name: kvc-kv-01-dev-wus2-bbk
+	# these can take some guesswork
+	# see https://www.bbkane.com/2020/11/29/Creating-an-Azure-Key-Vault-Certificate-with-Go.html
 	certificate_create_parameters:
 	  certificate_attributes:
-	    enabled: false
+	    enabled: false  # whether the cert is enabled in the Key Vault
 	  certificate_policy:
 		key_properties:
 		  exportable: true
@@ -118,11 +120,12 @@ func defaultConfig() []byte {
 		  validity_in_months: 6
 		lifetime_actions:
 		  - trigger:
+		      # choose one of these, but not both
 			  # lifetime_percentage: 75
 			  days_before_expiry: 30
 			action: autorenew
 		issuer_parameters:
-		  name: Self
+		  name: Self  # self-signed certs are pretty useless
 	  tags:
 		key1: value1
 		key2: value2
@@ -394,9 +397,8 @@ func certificateCreate(
 	flagTags []string,
 	flagValidityInMonths int32,
 	flagEnabled bool,
+	flagNewVersionOk bool,
 ) error {
-
-	// TODO: do a GET to see if overriding existing
 
 	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
 
@@ -433,13 +435,31 @@ func certificateCreate(
 	}
 	baseURL := "https://" + vaultName + ".vault.azure.net"
 
+	// check if it exists - not that there's a small race condition if this succeeds and someone else creates
+	// a cert with the id we want before we issue our create
+	if !flagNewVersionOk {
+		// A blank version means get the latest version
+		cert, err := kvClient.GetCertificate(context.Background(), baseURL, flagID, "")
+		pretendToUse(cert)
+		if err == nil {
+			err = errors.Errorf("certificate already exists for id: %#v\n", flagID)
+			sk.Errorw(
+				"certificate already exists for id. Pass `--new-version-ok` to create a new version",
+				"id", flagID,
+				"err", err,
+			)
+			return err
+		}
+	}
+
 	// ask for confirmation
 	{
 		paramsJSON, err := json.MarshalIndent(
 			params, "  ", "  ",
 		)
 		paramsJSONStr := string(paramsJSON)
-		fmt.Println("A certificate will be created with the following parameters:")
+		fmt.Printf("A certificate will be created in keyvault '%s' with the following parameters:\n", vaultName)
+		fmt.Print("  ")
 		fmt.Println(paramsJSONStr)
 		fmt.Print("Type 'yes' to continue: ")
 
@@ -485,8 +505,11 @@ func certificateCreate(
 
 	sk.Infow(
 		"certificate created",
-		"id", flagID,
-		"result", result,
+		"certId", flagID,
+		"createdID", *result.ID,
+		"requestID", *result.RequestID,
+		"status", *result.Status,
+		"statusDetails", *result.StatusDetails,
 	)
 	return nil
 }
@@ -512,6 +535,7 @@ func run() error {
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "tags to add in key=value form").Short('t').Strings()
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('d').Bool()
+	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
 
 	versionCmd := app.Command("version", "print kvcrutch build and version information")
 
@@ -522,7 +546,7 @@ func run() error {
 	if err != nil {
 		err = errors.WithStack(err)
 		sugarkane.Printw(os.Stderr,
-			"config error",
+			"ERROR: config error",
 			"err", err,
 		)
 	}
@@ -532,7 +556,7 @@ func run() error {
 	}
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,
-			"Version and build information",
+			"INFO: Version and build information",
 			"builtBy", builtBy,
 			"commit", commit,
 			"date", date,
@@ -546,7 +570,7 @@ func run() error {
 	if cfgLoadErr != nil {
 		if cfgLoadErr != nil {
 			sugarkane.Printw(os.Stderr,
-				"Config error - try `config edit`",
+				"ERROR: Config error - try `config edit`",
 				"cfgLoadErr", cfgLoadErr,
 				"cfgLoadErrMsg", cfgLoadErr.Error(),
 			)
@@ -557,7 +581,7 @@ func run() error {
 	lumberjackLogger, cfgVaultName, cfgCertCreateParams, cfgParseErr := parseConfig(configBytes)
 	if cfgParseErr != nil {
 		sugarkane.Printw(os.Stderr,
-			"Can't parse config",
+			"ERROR: Can't parse config",
 			"err", cfgParseErr,
 		)
 		return cfgParseErr
@@ -582,6 +606,7 @@ func run() error {
 			*certificateCreateCmdTagsFlag,
 			*certificateCreateCmdValidityInMonthsFlag,
 			*certificateCreateCmdEnabledFlag,
+			*certificateCreateCmdNewVersionOkFlag,
 		)
 	default:
 		err = errors.Errorf("Unknown command: %#v\n", cmd)
