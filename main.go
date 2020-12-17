@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/exec"
 	"runtime"
@@ -11,6 +16,7 @@ import (
 	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/keyvault/keyvault"
+	"github.com/Azure/go-autorest/autorest"
 	"github.com/bbkane/kvcrutch/sugarkane"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -246,8 +252,46 @@ func editConfig(defaultConfig []byte, configPath string, editor string) error {
 	return nil
 }
 
-func boolPtr(v bool) *bool {
-	return &v
+func logAutorestRequest(sk *sugarkane.SugarKane) autorest.PrepareDecorator {
+	return func(p autorest.Preparer) autorest.Preparer {
+		return autorest.PreparerFunc(func(r *http.Request) (*http.Request, error) {
+			r, err := p.Prepare(r)
+			if err != nil {
+				err := errors.WithStack(err)
+				sk.Errorw(
+					"autorest HTTP request error",
+					"err", err,
+				)
+			}
+			dump, _ := httputil.DumpRequestOut(r, true)
+			sk.Debugw(
+				"autorest HTTP request",
+				"req", string(dump),
+			)
+			return r, err
+		})
+	}
+}
+
+func logAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
+	return func(p autorest.Responder) autorest.Responder {
+		return autorest.ResponderFunc(func(r *http.Response) error {
+			err := p.Respond(r)
+			if err != nil {
+				err := errors.WithStack(err)
+				sk.Errorw(
+					"autorest HTTP response error",
+					"err", err,
+				)
+			}
+			dump, _ := httputil.DumpResponse(r, true)
+			sk.Debugw(
+				"autorest HTTP response",
+				"req", string(dump),
+			)
+			return err
+		})
+	}
 }
 
 func createKVCertCreateParamsFromCfg(cfgCCP certificateCreateParameters) keyvault.CertificateCreateParameters {
@@ -352,7 +396,8 @@ func certificateCreate(
 	flagEnabled bool,
 ) error {
 
-	// TODO: check if overriding existing
+	// TODO: do a GET to see if overriding existing
+
 	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
 
 	flagTagsMap := make(map[string]*string)
@@ -369,6 +414,18 @@ func certificateCreate(
 	kvClient := keyvault.New()
 	var err error
 	kvClient.Authorizer, err = kvauth.NewAuthorizerFromCLI()
+	if err != nil {
+		err = errors.WithStack(err)
+		sk.Errorw(
+			"keyvault authorization error",
+			"err", err,
+		)
+		return err
+	}
+
+	// https://github.com/Azure-Samples/azure-sdk-for-go-samples/blob/master/keyvault/examples/go-keyvault-msi-example.go
+	kvClient.RequestInspector = logAutorestRequest(sk)
+	kvClient.ResponseInspector = logAutorestResponse(sk)
 
 	vaultName := cfgVaultName
 	if flagVaultName != "" {
@@ -376,6 +433,39 @@ func certificateCreate(
 	}
 	baseURL := "https://" + vaultName + ".vault.azure.net"
 
+	// ask for confirmation
+	{
+		paramsJSON, err := json.MarshalIndent(
+			params, "  ", "  ",
+		)
+		paramsJSONStr := string(paramsJSON)
+		fmt.Println("A certificate will be created with the following parameters:")
+		fmt.Println(paramsJSONStr)
+		fmt.Print("Type 'yes' to continue: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		confirmation, err := reader.ReadString('\n')
+		confirmation = strings.TrimSpace(confirmation)
+		if err != nil {
+			err = errors.WithStack(err)
+			sk.Errorw(
+				"Cannot read confirmation input",
+				"err", err,
+			)
+			return err
+		}
+		if confirmation != "yes" {
+			err := errors.Errorf("confirmation not 'yes': %#v\n", confirmation)
+			sk.Errorw(
+				"confirmation went bad",
+				"confirmation", confirmation,
+				"err", err,
+			)
+			return err
+		}
+	}
+
+	// kvClient.
 	result, err := kvClient.CreateCertificate(
 		context.Background(),
 		baseURL,
