@@ -1,0 +1,39 @@
+version: 0.0.1
+# make lumberjacklogger nil to not log to file
+lumberjacklogger:
+  filename: ~/.config/kvcrutch.jsonl
+  maxsize: 5  # megabytes
+  maxbackups: 0
+  maxage: 30  # days
+vault_name: kvc-kv-01-dev-wus2-bbk
+# these can take some guesswork
+# see https://www.bbkane.com/2020/11/29/Creating-an-Azure-Key-Vault-Certificate-with-Go.html
+certificate_create_parameters:
+  certificate_attributes:
+    enabled: false  # whether the cert is enabled in the Key Vault
+  certificate_policy:
+    key_properties:
+      exportable: true
+      key_type: RSA
+      key_size: 2048
+      reuse_key: false
+    secret_properties:
+      content_type: "application/x-pkcs12"
+    x509_certificate_properties:
+      subject: "CN=example.com"
+      subject_alternative_names:
+        - example.com
+        - www.example.com
+      validity_in_months: 6
+    lifetime_actions:
+      - trigger:
+          # choose one of these, but not both
+          # lifetime_percentage: 75
+          days_before_expiry: 30
+        action: autorenew
+    issuer_parameters:
+      name: Self  # make sure to add a real CA here
+  tags:
+    key1: value1
+    key2: value2
+

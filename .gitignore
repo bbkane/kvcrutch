@@ -1,4 +1,5 @@
 .terraform/
-concert
+kvcrutch
 terraform.tfstate*
 tmp*
+*_vfsdata.go

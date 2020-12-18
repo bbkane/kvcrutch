@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/keyvault/keyvault"
@@ -88,50 +89,6 @@ type config struct {
 	LumberjackLogger            *lumberjack.Logger          `yaml:"lumberjacklogger"`
 	VaultName                   string                      `yaml:"vault_name"`
 	CertificateCreateParameters certificateCreateParameters `yaml:"certificate_create_parameters"`
-}
-
-func defaultConfig() []byte {
-	defaultConfigContent := []byte(`version: 0.0.1
-	# make lumberjacklogger nil to not log to file
-	lumberjacklogger:
-	  filename: ~/.config/kvcrutch.jsonl
-	  maxsize: 5  # megabytes
-	  maxbackups: 0
-	  maxage: 30  # days
-	vault_name: kvc-kv-01-dev-wus2-bbk
-	# these can take some guesswork
-	# see https://www.bbkane.com/2020/11/29/Creating-an-Azure-Key-Vault-Certificate-with-Go.html
-	certificate_create_parameters:
-	  certificate_attributes:
-	    enabled: false  # whether the cert is enabled in the Key Vault
-	  certificate_policy:
-		key_properties:
-		  exportable: true
-		  key_type: RSA
-		  key_size: 2048
-		  reuse_key: false
-		secret_properties:
-		  content_type: "application/x-pkcs12"
-		x509_certificate_properties:
-		  subject: "CN=example.com"
-		  subject_alternative_names:
-			- example.com
-			- www.example.com
-		  validity_in_months: 6
-		lifetime_actions:
-		  - trigger:
-		      # choose one of these, but not both
-			  # lifetime_percentage: 75
-			  days_before_expiry: 30
-			action: autorenew
-		issuer_parameters:
-		  name: Self  # self-signed certs are pretty useless
-	  tags:
-		key1: value1
-		key2: value2
-
-`)
-	return defaultConfigContent
 }
 
 func parseConfig(configBytes []byte) (*lumberjack.Logger, string, certificateCreateParameters, error) {
@@ -549,10 +506,31 @@ func run() error {
 			"ERROR: config error",
 			"err", err,
 		)
+		return err
 	}
 
 	if cmd == configCmdEditCmd.FullCommand() {
-		return editConfig(defaultConfig(), configPath, *configCmdEditCmdEditorFlag)
+		configFile := "kvcrutch.yaml"
+		fp, err := static.Static.Open(configFile)
+		if err != nil {
+			err = errors.Errorf("Can't open file: %#v\n", configFile)
+			sugarkane.Printw(os.Stderr,
+				"ERROR: can't open file",
+				"file", configFile,
+			)
+			return err
+		}
+		configBytes, err := ioutil.ReadAll(fp)
+		if err != nil {
+			err = errors.Errorf("Can't read file: %#v\n", configBytes)
+			sugarkane.Printw(os.Stderr,
+				"ERROR: can't read file",
+				"file", configFile,
+			)
+			return err
+		}
+
+		return editConfig(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
 	}
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,

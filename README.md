@@ -1,36 +1,16 @@
-kvcrutch
-    --vault-name
-    create
-        --disabled
-        --tags [key=value, ...]
-        --name
-        --validity
-        --cn
-        --san ... ...
-    new-version
-        --add-san ...
-        --rm-san ...
-        --add-tag ...
-        --rm-tag ...
-        --validity
-    list  # actually list everything
-    config edit
+# kvcrutch
 
-# Test for now. Someday I'll have real tests :)
+`kvcrutch` is a small tool for working with Azure Key Vaults and TLS
+certificates. It's goal is to complement `az keyvault ...`
 
-go run . certificate create \
-    --id 'test-create-flags' \
-    --subject 'CN=bbkane.com' \
-    --san bbkane.com \
-    --san www.bbkane.com \
-    --tag 'bkey=bvalue' \
-    --validity 12 \
-    --enabled
+Right now it's an easier and safer way to create TLS certificates.
 
-# TODO
+`kvcrutch certificate create`:
+- looks at a config file (use `kvcrutch config edit` to generate a config) for certificate creation params
+- overrides config created params with passed command line flags (note that some settings can only be toggled via config)
+- checks if a certificate exists with the same ID
+- prompts you before creating the certificate with information to send
 
-- embed config into a static package... VSCode isn't respecting my spaces instead of tabs within the string
-- add goreleaser
-- make other commands (cert new-version, cert list)
-- document config better
+## Install
 
+## Build
