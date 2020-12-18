@@ -1,3 +1,4 @@
+//go:generate go run ./generate_static_data.go
 package main
 
 import (
