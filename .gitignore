@@ -1,5 +1,6 @@
+*_vfsdata.go
 .terraform/
+dist/
 kvcrutch
 terraform.tfstate*
 tmp*
-*_vfsdata.go
