@@ -318,41 +318,46 @@ func createKVCertCreateParamsFromCfg(cfgCCP cfgCertificateCreateParameters) keyv
 
 func overwriteKVCertCreateParamsWithCreateFlags(
 	ccp *keyvault.CertificateCreateParameters,
-	flagSubject string,
-	flagSans []string,
-	flagTagsMap map[string]*string,
-	flagValidityInMonths int32,
-	flagEnabled bool) {
+	flagCertCreateParams flagCertificateCreateParameters) {
 
-	if flagSubject != "" {
-		ccp.CertificatePolicy.X509CertificateProperties.Subject = &flagSubject
+	if flagCertCreateParams.Subject != "" {
+		ccp.CertificatePolicy.X509CertificateProperties.Subject = &flagCertCreateParams.Subject
 	}
-	if len(flagSans) > 0 {
-		ccp.CertificatePolicy.X509CertificateProperties.SubjectAlternativeNames.DNSNames = &flagSans
+	if len(flagCertCreateParams.Sans) > 0 {
+		ccp.CertificatePolicy.X509CertificateProperties.SubjectAlternativeNames.DNSNames = &flagCertCreateParams.Sans
 	}
-	if len(flagTagsMap) > 0 {
-		ccp.Tags = flagTagsMap
+	if len(flagCertCreateParams.Tags) > 0 {
+		ccp.Tags = flagCertCreateParams.Tags
 	}
-	if flagValidityInMonths != 0 {
-		ccp.CertificatePolicy.X509CertificateProperties.ValidityInMonths = &flagValidityInMonths
+	if flagCertCreateParams.ValidityInMonths != 0 {
+		ccp.CertificatePolicy.X509CertificateProperties.ValidityInMonths = &flagCertCreateParams.ValidityInMonths
 	}
 	// NOTE: if not passed, then this resolves as false
 	// and we get the config version
-	if flagEnabled != false {
-		ccp.CertificateAttributes.Enabled = &flagEnabled
+	if flagCertCreateParams.Enabled != false {
+		ccp.CertificateAttributes.Enabled = &flagCertCreateParams.Enabled
 	}
 
 }
 
 type flagCertificateCreateParameters struct {
-	vaultName        string
-	id               string
-	subject          string
-	sans             []string
-	tags             map[string]*string
+	Subject          string
+	Sans             []string
+	Tags             map[string]*string
 	ValidityInMonths int32
-	enabled          bool
-	newVersionOk     bool
+	Enabled          bool
+}
+
+func parseTags(flagTags []string) (map[string]*string, error) {
+	flagTagsMap := make(map[string]*string)
+	for _, kv := range flagTags {
+		keyValue := strings.Split(kv, "=")
+		if len(keyValue) != 2 {
+			return flagTagsMap, errors.Errorf("tags should be formatted key=value : #%v", kv)
+		}
+		flagTagsMap[keyValue[0]] = &(keyValue[1])
+	}
+	return flagTagsMap, nil
 }
 
 func certificateCreate(
@@ -361,26 +366,13 @@ func certificateCreate(
 	cfgCertificateCreateParams cfgCertificateCreateParameters,
 	flagVaultName string,
 	flagID string,
-	flagSubject string,
-	flagSans []string,
-	flagTags []string,
-	flagValidityInMonths int32,
-	flagEnabled bool,
+	flagCertCreateParams flagCertificateCreateParameters,
 	flagNewVersionOk bool,
 ) error {
 
 	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
 
-	flagTagsMap := make(map[string]*string)
-	for _, kv := range flagTags {
-		keyValue := strings.Split(kv, "=")
-		if len(keyValue) != 2 {
-			return errors.Errorf("tags should be formatted key=value : #%v", kv)
-		}
-		flagTagsMap[keyValue[0]] = &(keyValue[1])
-	}
-	overwriteKVCertCreateParamsWithCreateFlags(
-		&params, flagSubject, flagSans, flagTagsMap, flagValidityInMonths, flagEnabled)
+	overwriteKVCertCreateParamsWithCreateFlags(&params, flagCertCreateParams)
 
 	kvClient := keyvault.New()
 	var err error
@@ -585,17 +577,28 @@ func run() error {
 	// dispatch commands that use dependencies
 	switch cmd {
 	case certificateCreateCmd.FullCommand():
+		flagTagsMap, err := parseTags(*certificateCreateCmdTagsFlag)
+		if err != nil {
+			err := errors.WithStack(err)
+			sk.Errorw(
+				"flag parsing error",
+				"err", err,
+			)
+		}
+		flagCertCreateParams := flagCertificateCreateParameters{
+			Subject:          *certificateCreateCmdSubjectFlag,
+			Sans:             *certificateCreateCmdSANsFlag,
+			Tags:             flagTagsMap,
+			ValidityInMonths: *certificateCreateCmdValidityInMonthsFlag,
+			Enabled:          *certificateCreateCmdEnabledFlag,
+		}
 		return certificateCreate(
 			sk,
 			cfgVaultName,
 			cfgCertCreateParams,
 			*appVaultNameFlag,
 			*certificateCreateCmdIDFlag,
-			*certificateCreateCmdSubjectFlag,
-			*certificateCreateCmdSANsFlag,
-			*certificateCreateCmdTagsFlag,
-			*certificateCreateCmdValidityInMonthsFlag,
-			*certificateCreateCmdEnabledFlag,
+			flagCertCreateParams,
 			*certificateCreateCmdNewVersionOkFlag,
 		)
 	default:
