@@ -380,7 +380,7 @@ func certificateCreate(
 	if err != nil {
 		err = errors.WithStack(err)
 		sk.Errorw(
-			"keyvault authorization error",
+			"keyvault authorization error. Log in with `az login`",
 			"err", err,
 		)
 		return err
