@@ -34,55 +34,37 @@ var commit = "devCommit"
 var date = "devDate"
 var builtBy = "devBuiltBy"
 
-// config stuff
-
-type cfgKeyProperties struct {
-	Exportable bool   `yaml:"exportable"`
-	KeyType    string `yaml:"key_type"`
-	KeySize    int32  `yaml:"key_size"`
-	ReuseKey   bool   `yaml:"reuse_key"`
-}
-
-type cfgSecretProperties struct {
-	ContentType string `yaml:"content_type"`
-}
-
-type cfgX509CertificateProperties struct {
-	Subject                 string   `yaml:"subject"`
-	SubjectAlternativeNames []string `yaml:"subject_alternative_names"`
-	ValidityInMonths        int32    `yaml:"validity_in_months"`
-}
-
-type cfgTrigger struct {
-	LifetimePercentage *int32 `yaml:"lifetime_percentage"`
-	DaysBeforeExpiry   *int32 `yaml:"days_before_expiry"`
-}
-
-type cfgLifetimeAction struct {
-	Trigger cfgTrigger `yaml:"trigger"`
-	Action  string     `yaml:"action"`
-}
-
-type cfgIssuerParameters struct {
-	Name string `yaml:"name"`
-}
-
-type cfgCertificatePolicy struct {
-	KeyProperties             cfgKeyProperties             `yaml:"key_properties"`
-	SecretProperties          cfgSecretProperties          `yaml:"secret_properties"`
-	X509CertificateProperties cfgX509CertificateProperties `yaml:"x509_certificate_properties"`
-	LifetimeActions           []cfgLifetimeAction          `yaml:"lifetime_actions"`
-	IssuerParameters          cfgIssuerParameters          `yaml:"issuer_parameters"`
-}
-
-type cfgCertificateAttributes struct {
-	Enabled bool `yaml:"enabled"`
-}
-
 type cfgCertificateCreateParameters struct {
-	CertificateAttributes cfgCertificateAttributes `yaml:"certificate_attributes"`
-	CertificatePolicy     cfgCertificatePolicy     `yaml:"certificate_policy"`
-	Tags                  map[string]string        `yaml:"tags"`
+	CertificateAttributes struct {
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"certificate_attributes"`
+	CertificatePolicy struct {
+		KeyProperties struct {
+			Exportable bool   `yaml:"exportable"`
+			KeyType    string `yaml:"key_type"`
+			KeySize    int32  `yaml:"key_size"`
+			ReuseKey   bool   `yaml:"reuse_key"`
+		} `yaml:"key_properties"`
+		SecretProperties struct {
+			ContentType string `yaml:"content_type"`
+		} `yaml:"secret_properties"`
+		X509CertificateProperties struct {
+			Subject                 string   `yaml:"subject"`
+			SubjectAlternativeNames []string `yaml:"subject_alternative_names"`
+			ValidityInMonths        int32    `yaml:"validity_in_months"`
+		} `yaml:"x509_certificate_properties"`
+		LifetimeActions []struct {
+			Trigger struct {
+				LifetimePercentage *int32 `yaml:"lifetime_percentage"`
+				DaysBeforeExpiry   *int32 `yaml:"days_before_expiry"`
+			} `yaml:"trigger"`
+			Action string `yaml:"action"`
+		} `yaml:"lifetime_actions"`
+		IssuerParameters struct {
+			Name string `yaml:"name"`
+		} `yaml:"issuer_parameters"`
+	} `yaml:"certificate_policy"`
+	Tags map[string]string `yaml:"tags"`
 }
 
 type config struct {
@@ -337,7 +319,6 @@ func overwriteKVCertCreateParamsWithCreateFlags(
 	if flagCertCreateParams.Enabled != false {
 		ccp.CertificateAttributes.Enabled = &flagCertCreateParams.Enabled
 	}
-
 }
 
 type flagCertificateCreateParameters struct {
