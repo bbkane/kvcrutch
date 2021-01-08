@@ -30,7 +30,7 @@ certificate_create_parameters:
           # choose one of these, but not both
           # lifetime_percentage: 75
           days_before_expiry: 30
-        action: autorenew
+        action: AutoRenew
     issuer_parameters:
       name: Self  # make sure to add a real CA here
   tags:

@@ -36,69 +36,69 @@ var builtBy = "devBuiltBy"
 
 // config stuff
 
-type keyProperties struct {
+type cfgKeyProperties struct {
 	Exportable bool   `yaml:"exportable"`
 	KeyType    string `yaml:"key_type"`
 	KeySize    int32  `yaml:"key_size"`
 	ReuseKey   bool   `yaml:"reuse_key"`
 }
 
-type secretProperties struct {
+type cfgSecretProperties struct {
 	ContentType string `yaml:"content_type"`
 }
 
-type x509CertificateProperties struct {
+type cfgX509CertificateProperties struct {
 	Subject                 string   `yaml:"subject"`
 	SubjectAlternativeNames []string `yaml:"subject_alternative_names"`
 	ValidityInMonths        int32    `yaml:"validity_in_months"`
 }
 
-type trigger struct {
+type cfgTrigger struct {
 	LifetimePercentage *int32 `yaml:"lifetime_percentage"`
 	DaysBeforeExpiry   *int32 `yaml:"days_before_expiry"`
 }
 
-type lifetimeAction struct {
-	Trigger trigger `yaml:"trigger"`
-	Action  string  `yaml:"action"`
+type cfgLifetimeAction struct {
+	Trigger cfgTrigger `yaml:"trigger"`
+	Action  string     `yaml:"action"`
 }
 
-type issuerParameters struct {
+type cfgIssuerParameters struct {
 	Name string `yaml:"name"`
 }
 
-type certificatePolicy struct {
-	KeyProperties             keyProperties             `yaml:"key_properties"`
-	SecretProperties          secretProperties          `yaml:"secret_properties"`
-	X509CertificateProperties x509CertificateProperties `yaml:"x509_certificate_properties"`
-	LifetimeActions           []lifetimeAction          `yaml:"lifetime_actions"`
-	IssuerParameters          issuerParameters          `yaml:"issuer_parameters"`
+type cfgCertificatePolicy struct {
+	KeyProperties             cfgKeyProperties             `yaml:"key_properties"`
+	SecretProperties          cfgSecretProperties          `yaml:"secret_properties"`
+	X509CertificateProperties cfgX509CertificateProperties `yaml:"x509_certificate_properties"`
+	LifetimeActions           []cfgLifetimeAction          `yaml:"lifetime_actions"`
+	IssuerParameters          cfgIssuerParameters          `yaml:"issuer_parameters"`
 }
 
-type certificateAttributes struct {
+type cfgCertificateAttributes struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-type certificateCreateParameters struct {
-	CertificateAttributes certificateAttributes `yaml:"certificate_attributes"`
-	CertificatePolicy     certificatePolicy     `yaml:"certificate_policy"`
-	Tags                  map[string]string     `yaml:"tags"`
+type cfgCertificateCreateParameters struct {
+	CertificateAttributes cfgCertificateAttributes `yaml:"certificate_attributes"`
+	CertificatePolicy     cfgCertificatePolicy     `yaml:"certificate_policy"`
+	Tags                  map[string]string        `yaml:"tags"`
 }
 
 type config struct {
 	Version                     string
-	LumberjackLogger            *lumberjack.Logger          `yaml:"lumberjacklogger"`
-	VaultName                   string                      `yaml:"vault_name"`
-	CertificateCreateParameters certificateCreateParameters `yaml:"certificate_create_parameters"`
+	LumberjackLogger            *lumberjack.Logger             `yaml:"lumberjacklogger"`
+	VaultName                   string                         `yaml:"vault_name"`
+	CertificateCreateParameters cfgCertificateCreateParameters `yaml:"certificate_create_parameters"`
 }
 
-func parseConfig(configBytes []byte) (*lumberjack.Logger, string, certificateCreateParameters, error) {
+func parseConfig(configBytes []byte) (*lumberjack.Logger, string, cfgCertificateCreateParameters, error) {
 
 	cfg := config{}
 	err := yaml.UnmarshalStrict(configBytes, &cfg)
 	if err != nil {
 		// not ok to get invalid YAML
-		return nil, "", certificateCreateParameters{}, errors.WithStack(err)
+		return nil, "", cfgCertificateCreateParameters{}, errors.WithStack(err)
 	}
 
 	var lumberjackLogger *lumberjack.Logger = nil
@@ -109,7 +109,7 @@ func parseConfig(configBytes []byte) (*lumberjack.Logger, string, certificateCre
 		// make them
 		f, err := homedir.Expand(cfg.LumberjackLogger.Filename)
 		if err != nil {
-			return nil, "", certificateCreateParameters{}, errors.WithStack(err)
+			return nil, "", cfgCertificateCreateParameters{}, errors.WithStack(err)
 		}
 		cfg.LumberjackLogger.Filename = f
 		lumberjackLogger = cfg.LumberjackLogger
@@ -255,7 +255,7 @@ func logAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
 	}
 }
 
-func createKVCertCreateParamsFromCfg(cfgCCP certificateCreateParameters) keyvault.CertificateCreateParameters {
+func createKVCertCreateParamsFromCfg(cfgCCP cfgCertificateCreateParameters) keyvault.CertificateCreateParameters {
 
 	var la []keyvault.LifetimeAction
 	{
@@ -344,10 +344,21 @@ func overwriteKVCertCreateParamsWithCreateFlags(
 
 }
 
+type flagCertificateCreateParameters struct {
+	vaultName        string
+	id               string
+	subject          string
+	sans             []string
+	tags             map[string]*string
+	ValidityInMonths int32
+	enabled          bool
+	newVersionOk     bool
+}
+
 func certificateCreate(
 	sk *sugarkane.SugarKane,
 	cfgVaultName string,
-	cfgCertificateCreateParams certificateCreateParameters,
+	cfgCertificateCreateParams cfgCertificateCreateParameters,
 	flagVaultName string,
 	flagID string,
 	flagSubject string,
@@ -492,7 +503,7 @@ func run() error {
 	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "subject alternative DNS name").Strings()
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "tags to add in key=value form").Short('t').Strings()
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
-	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('d').Bool()
+	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('e').Bool()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
 
 	versionCmd := app.Command("version", "print kvcrutch build and version information")
