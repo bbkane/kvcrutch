@@ -8,7 +8,7 @@ Use the following environment variables:
 
 ```
 # concert
-export ARM_SUBSCRIPTION_ID='a9396794-7c83-412f-92c6-1e89857f8d96'  # bbk1524
+export ARM_SUBSCRIPTION_ID='...'
 ```
 
 ```
