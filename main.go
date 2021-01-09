@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/bbkane/kvcrutch/grabbag"
-	"github.com/bbkane/kvcrutch/kvcrutch"
+	kvcrutch "github.com/bbkane/kvcrutch/lib"
 	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
 
