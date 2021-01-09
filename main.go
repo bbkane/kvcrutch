@@ -4,10 +4,9 @@ package main
 import (
 	"io/ioutil"
 	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
+	"github.com/bbkane/kvcrutch/grabbag"
 	"github.com/bbkane/kvcrutch/kvcrutch"
 	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
@@ -59,119 +58,10 @@ func parseConfig(configBytes []byte) (*lumberjack.Logger, string, kvcrutch.CfgCe
 	return lumberjackLogger, cfg.VaultName, cfg.CertificateCreateParameters, nil
 }
 
-func pretendToUse(args ...interface{}) {
-
-}
-
-// validateDirectory expands a directory and checks that it exists
-// it returns the full path to the directory on success
-// validateDirectory("~/foo") -> ("/home/bbkane/foo", nil)
-func validateDirectory(dir string) (string, error) {
-	dirPath, err := homedir.Expand(dir)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	info, err := os.Stat(dirPath)
-	if os.IsNotExist(err) {
-		return "", errors.Wrapf(err, "Directory does not exist: %v\n", dirPath)
-	}
-	if err != nil {
-		return "", errors.Wrapf(err, "Directory error: %v\n", dirPath)
-
-	}
-	if !info.IsDir() {
-		return "", errors.Errorf("Directory is a file, not a directory: %#v\n", dirPath)
-	}
-	return dirPath, nil
-}
-
-func editConfig(defaultConfig []byte, configPath string, editor string) error {
-
-	configPath, err := homedir.Expand(configPath)
-	if err != nil {
-		err := errors.WithStack(err)
-		sugarkane.Printw(os.Stderr,
-			"can't expand path",
-			"configPath", configPath,
-			"err", err,
-		)
-	}
-
-	stat, statErr := os.Stat(configPath)
-
-	if os.IsNotExist(statErr) {
-		writeErr := ioutil.WriteFile(configPath, defaultConfig, 0644)
-		if writeErr != nil {
-			sugarkane.Printw(os.Stderr,
-				"can't write new config",
-				"stat", stat,
-				"statErr", statErr,
-				"writeErr", writeErr,
-			)
-			return writeErr
-		}
-		sugarkane.Printw(os.Stdout,
-			"wrote default config",
-			"configPath", configPath,
-		)
-	} else if statErr != nil {
-		sugarkane.Printw(os.Stderr,
-			"can't stat config",
-			"stat", stat,
-			"statErr", statErr,
-		)
-		return statErr
-	}
-
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-	if editor == "" {
-		if runtime.GOOS == "windows" {
-			editor = "notepad"
-		} else if runtime.GOOS == "darwin" {
-			editor = "open"
-		} else if runtime.GOOS == "linux" {
-			editor = "xdg-open"
-		} else {
-			editor = "vim"
-		}
-	}
-	executable, err := exec.LookPath(editor)
-	if err != nil {
-		sugarkane.Printw(os.Stderr,
-			"can't find editor",
-			"err", err,
-		)
-		return err
-	}
-
-	sugarkane.Printw(os.Stderr,
-		"Opening config",
-		"editor", executable,
-		"configPath", configPath,
-	)
-
-	cmd := exec.Command(executable, configPath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	if err != nil {
-		sugarkane.Printw(os.Stderr,
-			"editor cmd error",
-			"err", err,
-		)
-		return err
-	}
-
-	return nil
-}
-
 func run() error {
 
 	// parse the CLI args
-	app := kingpin.New("kvcrutch", "Lean on me when `az keyvault` isn't quite as useful as needed").UsageTemplate(kingpin.DefaultUsageTemplate)
+	app := kingpin.New("kvcrutch", "Augment `az keyvault`. See https://github.com/bbkane/kvcrutch for example usage").UsageTemplate(kingpin.DefaultUsageTemplate)
 	app.HelpFlag.Short('h')
 	defaultConfigPath := "~/.config/kvcrutch.yaml"
 	appConfigPathFlag := app.Flag("config-path", "config filepath").Short('c').Default(defaultConfigPath).String()
@@ -183,17 +73,20 @@ func run() error {
 	configCmdEditCmdEditorFlag := configCmdEditCmd.Flag("editor", "path to editor").Short('e').String()
 
 	certificateCmd := app.Command("certificate", "work with certificates")
-	certificateCreateCmd := certificateCmd.Command("create", "create a certificate")
+
+	certificateCreateCmd := certificateCmd.Command("create", "Create a certificate")
 	certificateCreateCmdIDFlag := certificateCreateCmd.Flag("id", "certificate id in keyvault").Short('i').Required().String()
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
-	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "subject alternative DNS name").Strings()
+	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name").Strings()
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "tags to add in key=value form").Short('t').Strings()
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('e').Bool()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
 	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "create cert without prompting for confirmation").Bool()
 
-	versionCmd := app.Command("version", "print kvcrutch build and version information")
+	certificateListCmd := certificateCmd.Command("list", "List all certificates in a keyvault")
+
+	versionCmd := app.Command("version", "Print kvcrutch build and version information")
 
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
 
@@ -229,7 +122,7 @@ func run() error {
 			return err
 		}
 
-		return editConfig(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
+		return grabbag.EditConfig(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
 	}
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,
@@ -320,6 +213,13 @@ func run() error {
 			kvClient,
 			vaultURL,
 			*certificateCreateCmdSkipConfirmationFlag,
+			timeout,
+		)
+	case certificateListCmd.FullCommand():
+		return kvcrutch.CertificateList(
+			sk,
+			kvClient,
+			vaultURL,
 			timeout,
 		)
 	default:
