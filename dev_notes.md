@@ -38,7 +38,20 @@ kvcrutch
 
 # TODO
 
-- add goreleaser
+- move keyvault functionality to subpackage
+- test cert create
+- add better help to commands and examples to flags
 - make other commands (cert new-version, cert list)
 - document config better
-
+- blog post: What I don't like about Azure Key Vault (with workarounds)
+  - GUI
+    - manually creating a new version drops tags
+    - can't add tags on creation
+    - can't link to all versions of a cert
+    - can't search keyvault by SAN
+    - I don't think you can attach emails to certificates
+  - CLI
+    - See README for kvcrutch
+  - Rest API
+  - Go API
+- validate subject CN in SANs
