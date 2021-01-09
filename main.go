@@ -87,26 +87,40 @@ func validateDirectory(dir string) (string, error) {
 
 func editConfig(defaultConfig []byte, configPath string, editor string) error {
 
-	_, err := os.Stat(configPath)
-	if os.IsNotExist(err) {
-		err = ioutil.WriteFile(configPath, defaultConfig, 0644)
-		if err != nil {
+	configPath, err := homedir.Expand(configPath)
+	if err != nil {
+		err := errors.WithStack(err)
+		sugarkane.Printw(os.Stderr,
+			"can't expand path",
+			"configPath", configPath,
+			"err", err,
+		)
+	}
+
+	stat, statErr := os.Stat(configPath)
+
+	if os.IsNotExist(statErr) {
+		writeErr := ioutil.WriteFile(configPath, defaultConfig, 0644)
+		if writeErr != nil {
 			sugarkane.Printw(os.Stderr,
-				"can't write config",
-				"err", err,
+				"can't write new config",
+				"stat", stat,
+				"statErr", statErr,
+				"writeErr", writeErr,
 			)
-			return err
+			return writeErr
 		}
 		sugarkane.Printw(os.Stdout,
 			"wrote default config",
 			"configPath", configPath,
 		)
-	} else if err != nil {
+	} else if statErr != nil {
 		sugarkane.Printw(os.Stderr,
-			"can't write config",
-			"err", err,
+			"can't stat config",
+			"stat", stat,
+			"statErr", statErr,
 		)
-		return err
+		return statErr
 	}
 
 	if editor == "" {
