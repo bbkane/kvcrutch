@@ -1,7 +1,7 @@
 # kvcrutch
 
 `kvcrutch` is a small tool for working with Azure Key Vaults and TLS
-certificates. It's goal is to augment `az keyvault ...` in cases where `az
+certificates. It's goal is to augment `az keyvault` in cases where `az
 keyvault` isn't quite capable enough...
 
 ## Commands
@@ -39,17 +39,17 @@ done
 brew install bbkane/tap/kvcrutch
 ```
 
-## Executables from GitHub
+### Executables from GitHub
 
 See the [releases](https://github.com/bbkane/kvcrutch/releases) to download an executable for Mac, Linux, or Windows.
 
-## Build with [goreleaser](https://goreleaser.com/)
+### Build with [goreleaser](https://goreleaser.com/)
 
 ```
 goreleaser --snapshot --skip-publish --rm-dist
 ```
 
-## Build from source
+### Build from source
 
 Note that building this way doesn't embed the information `kvcrutch version` needs
 
