@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
@@ -341,20 +342,7 @@ func parseTags(flagTags []string) (map[string]*string, error) {
 	return flagTagsMap, nil
 }
 
-func certificateCreate(
-	sk *sugarkane.SugarKane,
-	cfgVaultName string,
-	cfgCertificateCreateParams cfgCertificateCreateParameters,
-	flagVaultName string,
-	flagID string,
-	flagCertCreateParams flagCertificateCreateParameters,
-	flagNewVersionOk bool,
-) error {
-
-	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
-
-	overwriteKVCertCreateParamsWithCreateFlags(&params, flagCertCreateParams)
-
+func prepareKV(sk *sugarkane.SugarKane) (*keyvault.BaseClient, error) {
 	kvClient := keyvault.New()
 	var err error
 	kvClient.Authorizer, err = kvauth.NewAuthorizerFromCLI()
@@ -364,30 +352,46 @@ func certificateCreate(
 			"keyvault authorization error. Log in with `az login`",
 			"err", err,
 		)
-		return err
+		return nil, err
 	}
 
 	// https://github.com/Azure-Samples/azure-sdk-for-go-samples/blob/master/keyvault/examples/go-keyvault-msi-example.go
 	kvClient.RequestInspector = logAutorestRequest(sk)
 	kvClient.ResponseInspector = logAutorestResponse(sk)
+	return &kvClient, nil
+}
 
-	vaultName := cfgVaultName
-	if flagVaultName != "" {
-		vaultName = flagVaultName
-	}
-	baseURL := "https://" + vaultName + ".vault.azure.net"
+func certificateCreate(
+	sk *sugarkane.SugarKane,
+	cfgCertificateCreateParams cfgCertificateCreateParameters,
+	flagCertID string,
+	flagCertCreateParams flagCertificateCreateParameters,
+	flagNewVersionOk bool,
+	kvClient *keyvault.BaseClient,
+	vaultURL string,
+	skipConfirmation bool,
+	timeout time.Duration,
+) error {
+
+	params := createKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
+
+	overwriteKVCertCreateParamsWithCreateFlags(&params, flagCertCreateParams)
 
 	// check if it exists - not that there's a small race condition if this succeeds and someone else creates
 	// a cert with the id we want before we issue our create
 	if !flagNewVersionOk {
+		// TODO: the timeout doesn't work here, though it work when I create a certificate
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 		// A blank version means get the latest version
-		cert, err := kvClient.GetCertificate(context.Background(), baseURL, flagID, "")
+		// NOTE: how much $$$ does this call cost?
+		cert, err := kvClient.GetCertificate(ctx, vaultURL, flagCertID, "")
 		pretendToUse(cert)
 		if err == nil {
-			err = errors.Errorf("certificate already exists for id: %#v\n", flagID)
+			err = errors.Errorf("certificate already exists for id: %#v\n", flagCertID)
 			sk.Errorw(
 				"certificate already exists for id. Pass `--new-version-ok` to create a new version",
-				"id", flagID,
+				"id", flagCertID,
 				"err", err,
 			)
 			return err
@@ -395,12 +399,12 @@ func certificateCreate(
 	}
 
 	// ask for confirmation
-	{
+	if !skipConfirmation {
 		paramsJSON, err := json.MarshalIndent(
 			params, "  ", "  ",
 		)
 		paramsJSONStr := string(paramsJSON)
-		fmt.Printf("A certificate will be created in keyvault '%s' with the following parameters:\n", vaultName)
+		fmt.Printf("A certificate will be created in keyvault '%s' with the following parameters:\n", vaultURL)
 		fmt.Print("  ")
 		fmt.Println(paramsJSONStr)
 		fmt.Print("Type 'yes' to continue: ")
@@ -427,11 +431,13 @@ func certificateCreate(
 		}
 	}
 
-	// kvClient.
+	// TODO: this doesn't appear to be working...
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	result, err := kvClient.CreateCertificate(
-		context.Background(),
-		baseURL,
-		flagID,
+		ctx,
+		vaultURL,
+		flagCertID,
 		params,
 	)
 
@@ -440,14 +446,14 @@ func certificateCreate(
 		sk.Errorw(
 			"certificate creation error",
 			"err", err,
-			"id", flagID,
+			"id", flagCertID,
 		)
 		return err
 	}
 
 	sk.Infow(
 		"certificate created",
-		"certId", flagID,
+		"certId", flagCertID,
 		"createdID", *result.ID,
 		"requestID", *result.RequestID,
 		"status", *result.Status,
@@ -464,6 +470,7 @@ func run() error {
 	defaultConfigPath := "~/.config/kvcrutch.yaml"
 	appConfigPathFlag := app.Flag("config-path", "config filepath").Short('c').Default(defaultConfigPath).String()
 	appVaultNameFlag := app.Flag("vault-name", "Key Vault Name").Short('v').String()
+	appTimeout := app.Flag("timeout", "limit keyvault operations when this expires. See https://golang.org/pkg/time/#ParseDuration for formatting details").Default("30s").String()
 
 	configCmd := app.Command("config", "config commands")
 	configCmdEditCmd := configCmd.Command("edit", "Edit or create configuration file. Uses $EDITOR as a fallback")
@@ -478,6 +485,7 @@ func run() error {
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('e').Bool()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
+	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "create cert without prompting for confirmation").Bool()
 
 	versionCmd := app.Command("version", "print kvcrutch build and version information")
 
@@ -555,6 +563,30 @@ func run() error {
 	defer sk.Sync()
 	sk.LogOnPanic()
 
+	// get a keyvault client
+	kvClient, err := prepareKV(sk)
+	if err != nil {
+		err := errors.WithStack(err)
+		return err
+	}
+
+	// get the vaultURL
+	vaultName := cfgVaultName
+	if *appVaultNameFlag != "" {
+		vaultName = *appVaultNameFlag
+	}
+	vaultURL := "https://" + vaultName + ".vault.azure.net"
+
+	// get a timeout
+	timeout, err := time.ParseDuration(*appTimeout)
+	if err != nil {
+		err := errors.WithStack(err)
+		sk.Errorw(
+			"can't parse app timeout",
+			"err", err,
+		)
+	}
+
 	// dispatch commands that use dependencies
 	switch cmd {
 	case certificateCreateCmd.FullCommand():
@@ -575,12 +607,14 @@ func run() error {
 		}
 		return certificateCreate(
 			sk,
-			cfgVaultName,
 			cfgCertCreateParams,
-			*appVaultNameFlag,
 			*certificateCreateCmdIDFlag,
 			flagCertCreateParams,
 			*certificateCreateCmdNewVersionOkFlag,
+			kvClient,
+			vaultURL,
+			*certificateCreateCmdSkipConfirmationFlag,
+			timeout,
 		)
 	default:
 		err = errors.Errorf("Unknown command: %#v\n", cmd)
