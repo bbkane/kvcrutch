@@ -181,9 +181,10 @@ func run() error {
 	if err != nil {
 		err := errors.WithStack(err)
 		sk.Errorw(
-			"can't parse app timeout",
+			"can't parse  --timeout",
 			"err", err,
 		)
+		return err
 	}
 
 	// dispatch commands that use dependencies
