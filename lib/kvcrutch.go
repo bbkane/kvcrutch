@@ -51,6 +51,14 @@ type CfgCertificateCreateParameters struct {
 	Tags map[string]string `yaml:"tags"`
 }
 
+type FlagCertificateCreateParameters struct {
+	Subject          string
+	Sans             []string
+	Tags             map[string]*string
+	ValidityInMonths int32
+	Enabled          bool
+}
+
 func LogAutorestRequest(sk *sugarkane.SugarKane) autorest.PrepareDecorator {
 	return func(p autorest.Preparer) autorest.Preparer {
 		return autorest.PreparerFunc(func(r *http.Request) (*http.Request, error) {
@@ -93,14 +101,6 @@ func LogAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
 	}
 }
 
-type FlagCertificateCreateParameters struct {
-	Subject          string
-	Sans             []string
-	Tags             map[string]*string
-	ValidityInMonths int32
-	Enabled          bool
-}
-
 func CertificateCreate(
 	sk *sugarkane.SugarKane,
 	cfgCertificateCreateParams CfgCertificateCreateParameters,
@@ -137,40 +137,20 @@ func CertificateCreate(
 		}
 	}
 
-	// ask for confirmation
 	if !skipConfirmation {
-		paramsJSON, err := json.MarshalIndent(
-			params, "  ", "  ",
-		)
-		paramsJSONStr := string(paramsJSON)
-		fmt.Printf("A certificate will be created in keyvault '%s' with the following parameters:\n", vaultURL)
-		fmt.Print("  ")
-		fmt.Println(paramsJSONStr)
-		fmt.Print("Type 'yes' to continue: ")
-
-		reader := bufio.NewReader(os.Stdin)
-		confirmation, err := reader.ReadString('\n')
-		confirmation = strings.TrimSpace(confirmation)
+		err := creationPrompt(vaultURL, &params)
 		if err != nil {
-			err = errors.WithStack(err)
 			sk.Errorw(
-				"Cannot read confirmation input",
+				"Can't confirm creation",
+				"vaultURL", vaultURL,
+				"certID", flagCertID,
 				"err", err,
 			)
 			return err
 		}
-		if confirmation != "yes" {
-			err := errors.Errorf("confirmation not 'yes': %#v\n", confirmation)
-			sk.Errorw(
-				"confirmation went bad",
-				"confirmation", confirmation,
-				"err", err,
-			)
-			return err
-		}
+
 	}
 
-	// TODO: this doesn't appear to be working...
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	result, err := kvClient.CreateCertificate(
@@ -361,4 +341,102 @@ func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vau
 	}
 
 	return nil
+}
+
+func CertificateNewVersion(
+	sk *sugarkane.SugarKane,
+	kvClient *keyvault.BaseClient,
+	vaultURL string,
+	certID string,
+	timeout time.Duration,
+	skipConfirmation bool,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	certVersion := ""
+	cert, err := kvClient.GetCertificate(ctx, vaultURL, certID, certVersion)
+	if err != nil {
+		err = errors.WithStack(err)
+		sk.Errorw(
+			"Can't get certificate",
+			"vaultURL", vaultURL,
+			"certID", certID,
+			"err", err,
+		)
+		return err
+	}
+
+	certCreateParams := keyvault.CertificateCreateParameters{
+		CertificatePolicy:     cert.Policy,
+		CertificateAttributes: cert.Attributes,
+		Tags:                  cert.Tags,
+	}
+
+	if !skipConfirmation {
+		err := creationPrompt(vaultURL, &certCreateParams)
+		if err != nil {
+			sk.Errorw(
+				"Can't confirm creation",
+				"vaultURL", vaultURL,
+				"certID", certID,
+				"err", err,
+			)
+			return err
+		}
+
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := kvClient.CreateCertificate(
+		ctx,
+		vaultURL,
+		certID,
+		certCreateParams,
+	)
+
+	if err != nil {
+		err = errors.WithStack(err)
+		sk.Errorw(
+			"certificate creation error",
+			"err", err,
+			"id", certID,
+		)
+		return err
+	}
+
+	sk.Infow(
+		"certificate created (new version)",
+		"certId", certID,
+		"createdID", *result.ID,
+		"requestID", *result.RequestID,
+		"status", *result.Status,
+		"statusDetails", *result.StatusDetails,
+	)
+
+	return nil
+}
+
+func creationPrompt(vaultURL string, params *keyvault.CertificateCreateParameters) error {
+	paramsJSON, err := json.MarshalIndent(
+		params, "  ", "  ",
+	)
+	paramsJSONStr := string(paramsJSON)
+	fmt.Printf("A certificate will be created in keyvault '%s' with the following parameters:\n", vaultURL)
+	fmt.Print("  ")
+	fmt.Println(paramsJSONStr)
+	fmt.Print("Type 'yes' to continue: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	confirmation, err := reader.ReadString('\n')
+	confirmation = strings.TrimSpace(confirmation)
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+	if confirmation != "yes" {
+		err := errors.Errorf("confirmation not 'yes': %#v\n", confirmation)
+		return err
+	}
+	return err
 }

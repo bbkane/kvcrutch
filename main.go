@@ -64,27 +64,31 @@ func run() error {
 	app := kingpin.New("kvcrutch", "Augment `az keyvault`. See https://github.com/bbkane/kvcrutch for example usage").UsageTemplate(kingpin.DefaultUsageTemplate)
 	app.HelpFlag.Short('h')
 	defaultConfigPath := "~/.config/kvcrutch.yaml"
-	appConfigPathFlag := app.Flag("config-path", "config filepath").Short('c').Default(defaultConfigPath).String()
+	appConfigPathFlag := app.Flag("config-path", "Config filepath").Short('c').Default(defaultConfigPath).String()
 	appVaultNameFlag := app.Flag("vault-name", "Key Vault Name").Short('v').String()
-	appTimeout := app.Flag("timeout", "limit keyvault operations when this expires. See https://golang.org/pkg/time/#ParseDuration for formatting details").Default("30s").String()
+	appTimeout := app.Flag("timeout", "Limit keyvault operations when this expires. See https://golang.org/pkg/time/#ParseDuration for formatting details").Default("30s").String()
 
-	configCmd := app.Command("config", "config commands")
+	configCmd := app.Command("config", "Config commands")
 	configCmdEditCmd := configCmd.Command("edit", "Edit or create configuration file. Uses $EDITOR as a fallback")
-	configCmdEditCmdEditorFlag := configCmdEditCmd.Flag("editor", "path to editor").Short('e').String()
+	configCmdEditCmdEditorFlag := configCmdEditCmd.Flag("editor", "Path to editor").Short('e').String()
 
-	certificateCmd := app.Command("certificate", "work with certificates")
+	certificateCmd := app.Command("certificate", "Work with certificates")
 
 	certificateCreateCmd := certificateCmd.Command("create", "Create a certificate")
 	certificateCreateCmdIDFlag := certificateCreateCmd.Flag("id", "certificate id in keyvault").Short('i').Required().String()
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
 	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name").Strings()
-	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "tags to add in key=value form").Short('t').Strings()
-	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "validity in months").Int32()
-	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "enable certificate on creation").Short('e').Bool()
+	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form").Short('t').Strings()
+	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "Validity in months").Int32()
+	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "Enable certificate on creation").Short('e').Bool()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
-	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "create cert without prompting for confirmation").Bool()
+	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
 	certificateListCmd := certificateCmd.Command("list", "List all certificates in a keyvault")
+
+	certificateNewVersionCmd := certificateCmd.Command("new-version", "Create a new version of an existing certificate")
+	certificateNewVersionCmdIDFlag := certificateNewVersionCmd.Flag("id", "certificate id in keyvault. Example: my-cert").Short('i').Required().String()
+	certificateNewVersionSkipConfirmationFlag := certificateNewVersionCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
 	versionCmd := app.Command("version", "Print kvcrutch build and version information")
 
@@ -222,6 +226,15 @@ func run() error {
 			kvClient,
 			vaultURL,
 			timeout,
+		)
+	case certificateNewVersionCmd.FullCommand():
+		return kvcrutch.CertificateNewVersion(
+			sk,
+			kvClient,
+			vaultURL,
+			*certificateNewVersionCmdIDFlag,
+			timeout,
+			*certificateNewVersionSkipConfirmationFlag,
 		)
 	default:
 		err = errors.Errorf("Unknown command: %#v\n", cmd)
