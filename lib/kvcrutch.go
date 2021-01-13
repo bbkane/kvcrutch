@@ -101,12 +101,26 @@ func LogAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
 	}
 }
 
+func CertificateCreateNew(
+	sk *sugarkane.SugarKane,
+	kvClient *keyvault.BaseClient,
+	vaultURL string,
+	timeout time.Duration,
+	certName string,
+	cfgCertCreateParams CfgCertificateCreateParameters,
+	flagCertCreateParams FlagCertificateCreateParameters,
+	newVersionOk bool,
+	skipConfirmation bool,
+) error {
+	return nil
+}
+
 func CertificateCreate(
 	sk *sugarkane.SugarKane,
 	cfgCertificateCreateParams CfgCertificateCreateParameters,
-	flagCertID string,
+	certName string,
 	flagCertCreateParams FlagCertificateCreateParameters,
-	flagNewVersionOk bool,
+	newVersionOk bool,
 	kvClient *keyvault.BaseClient,
 	vaultURL string,
 	skipConfirmation bool,
@@ -118,19 +132,19 @@ func CertificateCreate(
 	OverwriteKVCertCreateParamsWithCreateFlags(&params, flagCertCreateParams)
 
 	// check if it exists - not that there's a small race condition if this succeeds and someone else creates
-	// a cert with the id we want before we issue our create
-	if !flagNewVersionOk {
+	// a cert with the name we want before we issue our create
+	if !newVersionOk {
 		// TODO: the timeout doesn't work here, though it work when I create a certificate
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		// A blank version means get the latest version
 		// NOTE: how much $$$ does this call cost?
-		_, err := kvClient.GetCertificate(ctx, vaultURL, flagCertID, "")
+		_, err := kvClient.GetCertificate(ctx, vaultURL, certName, "")
 		if err == nil {
-			err = errors.Errorf("certificate already exists for id: %#v\n", flagCertID)
+			err = errors.Errorf("certificate already exists for certName: %#v\n", certName)
 			sk.Errorw(
-				"certificate already exists for id. Pass `--new-version-ok` to create a new version",
-				"id", flagCertID,
+				"certificate already exists for name. Pass `--new-version-ok` to create a new version",
+				"certName", certName,
 				"err", err,
 			)
 			return err
@@ -143,7 +157,7 @@ func CertificateCreate(
 			sk.Errorw(
 				"Can't confirm creation",
 				"vaultURL", vaultURL,
-				"certID", flagCertID,
+				"certName", certName,
 				"err", err,
 			)
 			return err
@@ -156,7 +170,7 @@ func CertificateCreate(
 	result, err := kvClient.CreateCertificate(
 		ctx,
 		vaultURL,
-		flagCertID,
+		certName,
 		params,
 	)
 
@@ -165,14 +179,14 @@ func CertificateCreate(
 		sk.Errorw(
 			"certificate creation error",
 			"err", err,
-			"id", flagCertID,
+			"certName", certName,
 		)
 		return err
 	}
 
 	sk.Infow(
 		"certificate created",
-		"certId", flagCertID,
+		"certName", certName,
 		"createdID", *result.ID,
 		"requestID", *result.RequestID,
 		"status", *result.Status,
@@ -347,20 +361,20 @@ func CertificateNewVersion(
 	sk *sugarkane.SugarKane,
 	kvClient *keyvault.BaseClient,
 	vaultURL string,
-	certID string,
+	certName string,
 	timeout time.Duration,
 	skipConfirmation bool,
 ) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	certVersion := ""
-	cert, err := kvClient.GetCertificate(ctx, vaultURL, certID, certVersion)
+	cert, err := kvClient.GetCertificate(ctx, vaultURL, certName, certVersion)
 	if err != nil {
 		err = errors.WithStack(err)
 		sk.Errorw(
 			"Can't get certificate",
 			"vaultURL", vaultURL,
-			"certID", certID,
+			"certName", certName,
 			"err", err,
 		)
 		return err
@@ -378,7 +392,7 @@ func CertificateNewVersion(
 			sk.Errorw(
 				"Can't confirm creation",
 				"vaultURL", vaultURL,
-				"certID", certID,
+				"certName", certName,
 				"err", err,
 			)
 			return err
@@ -391,7 +405,7 @@ func CertificateNewVersion(
 	result, err := kvClient.CreateCertificate(
 		ctx,
 		vaultURL,
-		certID,
+		certName,
 		certCreateParams,
 	)
 
@@ -400,14 +414,14 @@ func CertificateNewVersion(
 		sk.Errorw(
 			"certificate creation error",
 			"err", err,
-			"id", certID,
+			"certName", certName,
 		)
 		return err
 	}
 
 	sk.Infow(
 		"certificate created (new version)",
-		"certId", certID,
+		"certName", certName,
 		"createdID", *result.ID,
 		"requestID", *result.RequestID,
 		"status", *result.Status,

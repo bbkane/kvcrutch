@@ -38,10 +38,7 @@ kvcrutch
 
 # TODO
 
-- move keyvault functionality to subpackage
-- test cert create
 - add better help to commands and examples to flags
-- make other commands (cert new-version, cert list)
 - document config better
 - blog post: What I don't like about Azure Key Vault (with workarounds)
   - GUI
@@ -54,4 +51,6 @@ kvcrutch
     - See README for kvcrutch
   - Rest API
   - Go API
+  - Other
+    - enabling soft delete means you can't delete secrets when you delete certs
 - validate subject CN in SANs

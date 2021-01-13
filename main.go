@@ -75,7 +75,7 @@ func run() error {
 	certificateCmd := app.Command("certificate", "Work with certificates")
 
 	certificateCreateCmd := certificateCmd.Command("create", "Create a certificate")
-	certificateCreateCmdIDFlag := certificateCreateCmd.Flag("id", "certificate id in keyvault").Short('i').Required().String()
+	certificateCreateCmdNameFlag := certificateCreateCmd.Flag("name", "certificate name in keyvault").Short('i').Required().String()
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
 	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name").Strings()
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form").Short('t').Strings()
@@ -87,7 +87,7 @@ func run() error {
 	certificateListCmd := certificateCmd.Command("list", "List all certificates in a keyvault")
 
 	certificateNewVersionCmd := certificateCmd.Command("new-version", "Create a new version of an existing certificate")
-	certificateNewVersionCmdIDFlag := certificateNewVersionCmd.Flag("id", "certificate id in keyvault. Example: my-cert").Short('i').Required().String()
+	certificateNewVersionCmdNameFlag := certificateNewVersionCmd.Flag("name", "certificate name in keyvault. Example: my-cert").Short('i').Required().String()
 	certificateNewVersionSkipConfirmationFlag := certificateNewVersionCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
 	versionCmd := app.Command("version", "Print kvcrutch build and version information")
@@ -212,7 +212,7 @@ func run() error {
 		return kvcrutch.CertificateCreate(
 			sk,
 			cfgCertCreateParams,
-			*certificateCreateCmdIDFlag,
+			*certificateCreateCmdNameFlag,
 			flagCertCreateParams,
 			*certificateCreateCmdNewVersionOkFlag,
 			kvClient,
@@ -232,7 +232,7 @@ func run() error {
 			sk,
 			kvClient,
 			vaultURL,
-			*certificateNewVersionCmdIDFlag,
+			*certificateNewVersionCmdNameFlag,
 			timeout,
 			*certificateNewVersionSkipConfirmationFlag,
 		)
