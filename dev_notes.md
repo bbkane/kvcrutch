@@ -39,6 +39,7 @@ kvcrutch
 # TODO
 
 - add better help to commands and examples to flags
+- document certifcate new-version
 - document config better
 - blog post: What I don't like about Azure Key Vault (with workarounds)
   - GUI

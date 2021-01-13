@@ -17,6 +17,22 @@ In contrast, `kvcrutch certificate create`:
 - checks if a certificate exists with the same ID
 - prompts you before creating the certificate with relevant information
 
+#### Example
+
+```
+$ kvcrutch certificate create \
+    --vault-name kvc-kv-01-dev-wus2-bbk \
+    --name test-create-again \
+    --subject 'CN=bbkane.com' \
+    --san 'bbkane.com' \
+    --san 'www.bbkane.com' \
+    --tag 'key1=value1' \
+    --tag 'key2=value2' \
+    --validity 3 \
+    --enabled \
+    --new-version-ok
+```
+
 ### `kvcrutch certificate list`
 
 `kvcrutch certificate list` exists because `az keyvault certificate list` only returns the first 25 certificates in a Key Vault and then just stops...
