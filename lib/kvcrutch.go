@@ -101,7 +101,7 @@ func LogAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
 	}
 }
 
-func CertificateCreateNew(
+func CertificateCreate(
 	sk *sugarkane.SugarKane,
 	kvClient *keyvault.BaseClient,
 	vaultURL string,
@@ -112,22 +112,8 @@ func CertificateCreateNew(
 	newVersionOk bool,
 	skipConfirmation bool,
 ) error {
-	return nil
-}
 
-func CertificateCreate(
-	sk *sugarkane.SugarKane,
-	cfgCertificateCreateParams CfgCertificateCreateParameters,
-	certName string,
-	flagCertCreateParams FlagCertificateCreateParameters,
-	newVersionOk bool,
-	kvClient *keyvault.BaseClient,
-	vaultURL string,
-	skipConfirmation bool,
-	timeout time.Duration,
-) error {
-
-	params := CreateKVCertCreateParamsFromCfg(cfgCertificateCreateParams)
+	params := CreateKVCertCreateParamsFromCfg(cfgCertCreateParams)
 
 	OverwriteKVCertCreateParamsWithCreateFlags(&params, flagCertCreateParams)
 

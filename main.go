@@ -75,19 +75,19 @@ func run() error {
 	certificateCmd := app.Command("certificate", "Work with certificates")
 
 	certificateCreateCmd := certificateCmd.Command("create", "Create a certificate")
-	certificateCreateCmdNameFlag := certificateCreateCmd.Flag("name", "certificate name in keyvault").Short('i').Required().String()
+	certificateCreateCmdNameFlag := certificateCreateCmd.Flag("name", "certificate name in keyvault").Short('n').Required().String()
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
 	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name").Strings()
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form").Short('t').Strings()
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "Validity in months").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "Enable certificate on creation").Short('e').Bool()
-	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Short('n').Bool()
+	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Bool()
 	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
 	certificateListCmd := certificateCmd.Command("list", "List all certificates in a keyvault")
 
 	certificateNewVersionCmd := certificateCmd.Command("new-version", "Create a new version of an existing certificate")
-	certificateNewVersionCmdNameFlag := certificateNewVersionCmd.Flag("name", "certificate name in keyvault. Example: my-cert").Short('i').Required().String()
+	certificateNewVersionCmdNameFlag := certificateNewVersionCmd.Flag("name", "certificate name in keyvault. Example: my-cert").Short('n').Required().String()
 	certificateNewVersionSkipConfirmationFlag := certificateNewVersionCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
 	versionCmd := app.Command("version", "Print kvcrutch build and version information")
@@ -209,17 +209,19 @@ func run() error {
 			ValidityInMonths: *certificateCreateCmdValidityInMonthsFlag,
 			Enabled:          *certificateCreateCmdEnabledFlag,
 		}
+
 		return kvcrutch.CertificateCreate(
 			sk,
-			cfgCertCreateParams,
-			*certificateCreateCmdNameFlag,
-			flagCertCreateParams,
-			*certificateCreateCmdNewVersionOkFlag,
 			kvClient,
 			vaultURL,
-			*certificateCreateCmdSkipConfirmationFlag,
 			timeout,
+			*certificateCreateCmdNameFlag,
+			cfgCertCreateParams,
+			flagCertCreateParams,
+			*certificateCreateCmdNewVersionOkFlag,
+			*certificateCreateCmdSkipConfirmationFlag,
 		)
+
 	case certificateListCmd.FullCommand():
 		return kvcrutch.CertificateList(
 			sk,
