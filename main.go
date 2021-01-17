@@ -2,7 +2,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"io/ioutil"
+	"net"
 	"os"
 	"time"
 
@@ -81,6 +83,7 @@ func run() error {
 	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form. Example: mykey=myvalue").Short('t').Strings()
 	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "Validity in months. Example: 6").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "Enable certificate on creation").Short('e').Bool()
+	certificateCreateCmdIssuerNameFlag := certificateCreateCmd.Flag("issuer-name", "CA Issuer name. Example: Self").String()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Bool()
 	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 
@@ -173,13 +176,6 @@ func run() error {
 		return err
 	}
 
-	// get the vaultURL
-	vaultName := cfgVaultName
-	if *appVaultNameFlag != "" {
-		vaultName = *appVaultNameFlag
-	}
-	vaultURL := "https://" + vaultName + ".vault.azure.net"
-
 	// get a timeout
 	timeout, err := time.ParseDuration(*appTimeout)
 	if err != nil {
@@ -190,6 +186,43 @@ func run() error {
 		)
 		return err
 	}
+
+	// get the vaultURL
+	vaultName := cfgVaultName
+	if *appVaultNameFlag != "" {
+		vaultName = *appVaultNameFlag
+	}
+	vaultFQDN := vaultName + ".vault.azure.net"
+	port := "443"
+	// Quick test to make sure we can connect
+	conn, err := tls.DialWithDialer(
+		&net.Dialer{Timeout: timeout},
+		"tcp",
+		net.JoinHostPort(vaultFQDN, port),
+		nil,
+	)
+	if err != nil {
+		err = errors.WithStack(err)
+		sk.Errorw(
+			"can't connect to vault",
+			"vaultFQDN", vaultFQDN,
+			"port", port,
+			"timeout", timeout,
+			"err", err,
+		)
+		return err
+	}
+	err = conn.Close()
+	if err != nil {
+		err = errors.WithStack(err)
+		sk.Errorw(
+			"can't close connection",
+			"conn", conn,
+			"err", err,
+		)
+		return err
+	}
+	vaultURL := "https://" + vaultFQDN
 
 	// dispatch commands that use dependencies
 	switch cmd {
@@ -208,6 +241,7 @@ func run() error {
 			Tags:             flagTagsMap,
 			ValidityInMonths: *certificateCreateCmdValidityInMonthsFlag,
 			Enabled:          *certificateCreateCmdEnabledFlag,
+			IssuerName:       *certificateCreateCmdIssuerNameFlag,
 		}
 
 		return kvcrutch.CertificateCreate(

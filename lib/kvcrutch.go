@@ -57,6 +57,7 @@ type FlagCertificateCreateParameters struct {
 	Tags             map[string]*string
 	ValidityInMonths int32
 	Enabled          bool
+	IssuerName       string
 }
 
 func LogAutorestRequest(sk *sugarkane.SugarKane) autorest.PrepareDecorator {
@@ -262,6 +263,10 @@ func OverwriteKVCertCreateParamsWithCreateFlags(
 	// and we get the config version
 	if flagCertCreateParams.Enabled != false {
 		ccp.CertificateAttributes.Enabled = &flagCertCreateParams.Enabled
+	}
+
+	if flagCertCreateParams.IssuerName != "" {
+		ccp.CertificatePolicy.IssuerParameters.Name = &flagCertCreateParams.IssuerName
 	}
 }
 
