@@ -7,7 +7,6 @@ keyvault` isn't quite capable enough...
 ## Commands
 
 ### `kvcrutch certificate create`
-
 `kvcrutch certificate create` exists because `az keyvault certificate create` requires you to type a new JSON creation policy each time you invoke it, which is error prone and annoying.
 
 In contrast, `kvcrutch certificate create`:
@@ -45,6 +44,12 @@ Here's a small script to download all certificates to JSON files in the current 
 $ kvcrutch certificate list | jq -r '.id' | while IFS='' read -r line || [ -n "${line}" ]; do
     az keyvault certificate show --id "$line" > "$(basename "$line").json"
 done
+```
+
+Here's a small script to list the id and a tag value in CSV format (cribbed from [StackOverflow](https://unix.stackexchange.com/a/242740/185953))
+
+```
+$ kvcrutch certificate list | jq -rs 'map([.id, .tags.<name> ] | join(", ")) | join("\n")'
 ```
 
 ## Install

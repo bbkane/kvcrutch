@@ -64,9 +64,9 @@ func run() error {
 	app := kingpin.New("kvcrutch", "Augment `az keyvault`. See https://github.com/bbkane/kvcrutch for example usage").UsageTemplate(kingpin.DefaultUsageTemplate)
 	app.HelpFlag.Short('h')
 	defaultConfigPath := "~/.config/kvcrutch.yaml"
-	appConfigPathFlag := app.Flag("config-path", "Config filepath").Short('c').Default(defaultConfigPath).String()
-	appVaultNameFlag := app.Flag("vault-name", "Key Vault Name").Short('v').String()
-	appTimeout := app.Flag("timeout", "Limit keyvault operations when this expires. See https://golang.org/pkg/time/#ParseDuration for formatting details").Default("30s").String()
+	appConfigPathFlag := app.Flag("config-path", "Config filepath. Example: ./kvcrutch.yaml").Short('c').Default(defaultConfigPath).String()
+	appVaultNameFlag := app.Flag("vault-name", "Key Vault Name. Example: my-keyvault").Short('v').String()
+	appTimeout := app.Flag("timeout", "Limit keyvault operations when this expires. See https://golang.org/pkg/time/#ParseDuration for formatting details. Example: 1m").Default("30s").String()
 
 	configCmd := app.Command("config", "Config commands")
 	configCmdEditCmd := configCmd.Command("edit", "Edit or create configuration file. Uses $EDITOR as a fallback")
@@ -75,11 +75,11 @@ func run() error {
 	certificateCmd := app.Command("certificate", "Work with certificates")
 
 	certificateCreateCmd := certificateCmd.Command("create", "Create a certificate")
-	certificateCreateCmdNameFlag := certificateCreateCmd.Flag("name", "certificate name in keyvault").Short('n').Required().String()
+	certificateCreateCmdNameFlag := certificateCreateCmd.Flag("name", "certificate name in keyvault. Example: my-cert").Short('n').Required().String()
 	certificateCreateCmdSubjectFlag := certificateCreateCmd.Flag("subject", "Certificate subject. Example: CN=example.com").String()
-	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name").Strings()
-	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form").Short('t').Strings()
-	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "Validity in months").Int32()
+	certificateCreateCmdSANsFlag := certificateCreateCmd.Flag("san", "DNS Subject Alternative Name. Example: www.bbkane.com").Strings()
+	certificateCreateCmdTagsFlag := certificateCreateCmd.Flag("tag", "Tags to add in key=value form. Example: mykey=myvalue").Short('t').Strings()
+	certificateCreateCmdValidityInMonthsFlag := certificateCreateCmd.Flag("validity", "Validity in months. Example: 6").Int32()
 	certificateCreateCmdEnabledFlag := certificateCreateCmd.Flag("enabled", "Enable certificate on creation").Short('e').Bool()
 	certificateCreateCmdNewVersionOkFlag := certificateCreateCmd.Flag("new-version-ok", "Confirm it's ok to create a new version of a certificate").Bool()
 	certificateCreateCmdSkipConfirmationFlag := certificateCreateCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
