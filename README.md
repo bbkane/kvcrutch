@@ -4,7 +4,39 @@
 certificates. It's goal is to augment `az keyvault` in cases where `az
 keyvault` isn't quite capable enough...
 
+## Install
+
+- Homebrew: `brew install bbkane/tap/kvcrutch`
+- Download Mac/Linux/Windows executable: [GitHub releases](https://github.com/bbkane/kvcrutch/releases)
+- Build with [goreleaser](https://goreleaser.com/): `goreleaser --snapshot --skip-publish --rm-dist`
+- Build with `go`:
+
+```
+go generate ./...
+go build -tags=dist .
+```
+
+## Login
+
+Create an authorization file for `kvcrutch` with `az login`. Log in with the same credentials you'd use to view your Key Vault in the web interface.
+
 ## Commands
+
+### `kvcrutch config edit`
+
+Writes [kvcrutch.yaml](./static/static/kvcrutch.yaml) if it doesn't yet exists
+to config path (defaults to `~/.config/kvcrutch.yaml`) and opens the file for
+editing. Specify default key vault name, default cert creation details, etc.
+here in the config. Pass `--editor /path/to/editor` to overwrite the default
+editor.
+
+#### Example
+
+```
+kvcrutch config edit \
+    -c ./kvcrutch.yaml \
+    -e /usr/bin/vi
+```
 
 ### `kvcrutch certificate create`
 `kvcrutch certificate create` exists because `az keyvault certificate create` requires you to type a new JSON creation policy each time you invoke it, which is error prone and annoying.
@@ -32,13 +64,51 @@ $ kvcrutch certificate create \
     --new-version-ok
 ```
 
+### `kvcrutch certificate new-version`
+
+`kvcrutch certificate new-version` exists because creating a new version of a certificate from the web UI will **silently drop** any tags attached to the current certificate.
+
+I typically use `new-version` to create a new version of a certificate after I have changed the Issuance Policy from the web UI.
+
+#### Example
+
+Add a SAN to the `new-version-example` certificate through the web UI:
+
+![Add SAN to Issuance Policy](./README_img/change-issuance-policy.png)
+
+```
+$ kvcrutch certificate new-version -n new-version-example
+A certificate will be created in keyvault 'https://kvc-kv-01-dev-wus2-bbk.vault.azure.net' with the following parameters:
+  {
+    // ... same creation JSON as before ...
+        "sans": {
+          "dns_names": [
+            "example.com",
+            "www.example.com",
+            "new-version.example.com" // SAN we changed
+          ]
+        },
+    // ... same creation JSON as before ...
+    },
+    "tags": { // ... tags are preserved ...
+      "key1": "value2",
+      "key2": "value2"
+    }
+  }
+Type 'yes' to continue: yes
+INFO: certificate created (new version)
+    // ... other output details
+```
+
 ### `kvcrutch certificate list`
 
 `kvcrutch certificate list` exists because `az keyvault certificate list` only returns the first 25 certificates in a Key Vault and then just stops...
 
 This issue is tracked in https://github.com/Azure/azure-cli/issues/15382 and if that's resolved I might remove this command.
 
-Here's a small script to download all certificates to JSON files in the current directory, which can be useful to grep if you're not sure which cert contains info you need.
+#### Examples
+
+Here's a small script to download all certificates to JSON files in the current directory, which can be useful to grep if you're not sure which certficate contains info you need.
 
 ```
 $ kvcrutch certificate list | jq -r '.id' | while IFS='' read -r line || [ -n "${line}" ]; do
@@ -52,29 +122,3 @@ Here's a small script to list the id and a tag value in CSV format (cribbed from
 $ kvcrutch certificate list | jq -rs 'map([.id, .tags.<name> ] | join(", ")) | join("\n")'
 ```
 
-## Install
-
-### Homebrew
-
-```
-brew install bbkane/tap/kvcrutch
-```
-
-### Executables from GitHub
-
-See the [releases](https://github.com/bbkane/kvcrutch/releases) to download an executable for Mac, Linux, or Windows.
-
-### Build with [goreleaser](https://goreleaser.com/)
-
-```
-goreleaser --snapshot --skip-publish --rm-dist
-```
-
-### Build from source
-
-Note that building this way doesn't embed the information `kvcrutch version` needs
-
-```
-go generate ./...
-go build -tags=dist .
-```
