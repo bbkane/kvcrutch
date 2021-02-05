@@ -234,6 +234,7 @@ func run() error {
 				"flag parsing error",
 				"err", err,
 			)
+			return err
 		}
 		flagCertCreateParams := kvcrutch.FlagCertificateCreateParameters{
 			Subject:          *certificateCreateCmdSubjectFlag,

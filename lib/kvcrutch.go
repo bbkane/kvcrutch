@@ -275,9 +275,12 @@ func ParseTags(flagTags []string) (map[string]*string, error) {
 	for _, kv := range flagTags {
 		keyValue := strings.Split(kv, "=")
 		if len(keyValue) != 2 {
-			return flagTagsMap, errors.Errorf("tags should be formatted key=value : #%v", kv)
+			return flagTagsMap, errors.Errorf("tags should be formatted key=value : %#v\n", kv)
 		}
 		flagTagsMap[keyValue[0]] = &(keyValue[1])
+	}
+	if len(flagTags) != len(flagTagsMap) {
+		return nil, errors.Errorf("key duplicate: %#v\n", flagTags)
 	}
 	return flagTagsMap, nil
 }
