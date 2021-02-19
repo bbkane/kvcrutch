@@ -6,11 +6,13 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/bbkane/kvcrutch/sugarkane"
+	// "github.com/bbkane/kvcrutch/sugarkane"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 )
 
+// PretendToUse is an empty function to shut up the Go compiler while prototyping
 func PretendToUse(args ...interface{}) {
 
 }
@@ -37,83 +39,55 @@ func ValidateDirectory(dir string) (string, error) {
 	return dirPath, nil
 }
 
-func EditConfig(defaultConfig []byte, configPath string, editor string) error {
+// EditFile writes a file if it does not exist, then opens the file to edit
+func EditFile(defaultContent []byte, filePath string, editorPath string) error {
 
-	configPath, err := homedir.Expand(configPath)
+	filePath, err := homedir.Expand(filePath)
 	if err != nil {
 		err := errors.WithStack(err)
-		sugarkane.Printw(os.Stderr,
-			"can't expand path",
-			"configPath", configPath,
-			"err", err,
-		)
-	}
-
-	stat, statErr := os.Stat(configPath)
-
-	if os.IsNotExist(statErr) {
-		writeErr := ioutil.WriteFile(configPath, defaultConfig, 0644)
-		if writeErr != nil {
-			sugarkane.Printw(os.Stderr,
-				"can't write new config",
-				"stat", stat,
-				"statErr", statErr,
-				"writeErr", writeErr,
-			)
-			return writeErr
-		}
-		sugarkane.Printw(os.Stdout,
-			"wrote default config",
-			"configPath", configPath,
-		)
-	} else if statErr != nil {
-		sugarkane.Printw(os.Stderr,
-			"can't stat config",
-			"stat", stat,
-			"statErr", statErr,
-		)
-		return statErr
-	}
-
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-	if editor == "" {
-		if runtime.GOOS == "windows" {
-			editor = "notepad"
-		} else if runtime.GOOS == "darwin" {
-			editor = "open"
-		} else if runtime.GOOS == "linux" {
-			editor = "xdg-open"
-		} else {
-			editor = "vim"
-		}
-	}
-	executable, err := exec.LookPath(editor)
-	if err != nil {
-		sugarkane.Printw(os.Stderr,
-			"can't find editor",
-			"err", err,
-		)
 		return err
 	}
 
-	sugarkane.Printw(os.Stderr,
-		"Opening config",
-		"editor", executable,
-		"configPath", configPath,
-	)
+	_, statErr := os.Stat(filePath)
 
-	cmd := exec.Command(executable, configPath)
+	if os.IsNotExist(statErr) {
+		writeErr := ioutil.WriteFile(filePath, defaultContent, 0644)
+		writeErr = errors.Wrap(writeErr, "can't write config")
+		if writeErr != nil {
+			return writeErr
+		}
+
+	} else if statErr != nil {
+		statErr = errors.Wrap(statErr, "can't stat config")
+		return statErr
+	}
+
+	if editorPath == "" {
+		editorPath = os.Getenv("EDITOR")
+	}
+	if editorPath == "" {
+		if runtime.GOOS == "windows" {
+			editorPath = "notepad"
+		} else if runtime.GOOS == "darwin" {
+			editorPath = "open"
+		} else if runtime.GOOS == "linux" {
+			editorPath = "xdg-open"
+		} else {
+			editorPath = "vim"
+		}
+	}
+	executable, err := exec.LookPath(editorPath)
+	if err != nil {
+		err = errors.Wrap(err, "can't find editor")
+		return err
+	}
+
+	cmd := exec.Command(executable, filePath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		sugarkane.Printw(os.Stderr,
-			"editor cmd error",
-			"err", err,
-		)
 		return err
 	}
 

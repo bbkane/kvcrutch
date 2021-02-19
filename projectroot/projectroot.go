@@ -23,7 +23,7 @@ func run(n string, args ...string) ([]byte, error) {
 	return bb.Bytes(), nil
 }
 
-// ProjectRoot returns the root directory if go modules is on, else an empty
+// ProjectRootDir returns the root directory if go modules is on, else an empty
 // string It can panic if 'go env GOMOD' fails, which I don't think ever
 // happens
 func ProjectRootDir() string {

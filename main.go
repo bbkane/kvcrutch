@@ -129,7 +129,15 @@ func run() error {
 			return err
 		}
 
-		return grabbag.EditConfig(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
+		err = grabbag.EditFile(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
+		if err != nil {
+			sugarkane.Printw(os.Stderr,
+				"ERROR: Unable to edit config",
+				"configPath", *appConfigPathFlag,
+				"editorPath", *configCmdEditCmdEditorFlag,
+				"err", err,
+			)
+		}
 	}
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,
