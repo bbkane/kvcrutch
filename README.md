@@ -9,12 +9,7 @@ keyvault` isn't quite capable enough...
 - Homebrew: `brew install bbkane/tap/kvcrutch`
 - Download Mac/Linux/Windows executable: [GitHub releases](https://github.com/bbkane/kvcrutch/releases)
 - Build with [goreleaser](https://goreleaser.com/): `goreleaser --snapshot --skip-publish --rm-dist`
-- Build with `go`:
-
-```
-go generate ./...
-go build -tags=dist .
-```
+- Build with `go`: `go build .`
 
 ## Login
 
@@ -24,7 +19,7 @@ Create an authorization file for `kvcrutch` with `az login`. Log in with the sam
 
 ### `kvcrutch config edit`
 
-Writes [kvcrutch.yaml](./static/static/kvcrutch.yaml) if it doesn't yet exists
+Writes [kvcrutch.yaml](./embedded/kvcrutch.yaml) if it doesn't yet exists
 to config path (defaults to `~/.config/kvcrutch.yaml`) and opens the file for
 editing. Specify default key vault name, default cert creation details, etc.
 here in the config. Pass `--editor /path/to/editor` to overwrite the default
@@ -121,4 +116,3 @@ Here's a small script to list the id and a tag value in CSV format (cribbed from
 ```
 $ kvcrutch certificate list | jq -rs 'map([.id, .tags.<name> ] | join(", ")) | join("\n")'
 ```
-

@@ -5,12 +5,14 @@ before:
     # You may remove this if you don't use go modules.
     - go mod download
     # you may remove this if you don't need go generate
-    - go generate ./...
+    # - go generate ./...
 builds:
   - env:
       - CGO_ENABLED=0
-    flags:
-      - -tags=dist
+    # I don't need to use build tags to embed files now that embed is a
+    # thing in go 1.16
+    # flags:
+    #   - -tags=dist
     goos:
       - linux
       - windows

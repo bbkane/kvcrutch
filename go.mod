@@ -1,6 +1,6 @@
 module github.com/bbkane/kvcrutch
 
-go 1.15
+go 1.16
 
 require (
 	github.com/Azure/azure-sdk-for-go v49.0.0+incompatible
@@ -13,8 +13,6 @@ require (
 	github.com/bbkane/glib v0.1.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
-	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	go.uber.org/zap v1.16.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0

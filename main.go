@@ -1,8 +1,8 @@
-//go:generate go run ./generate_static_data.go
 package main
 
 import (
 	"crypto/tls"
+	_ "embed"
 	"io/ioutil"
 	"net"
 	"os"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/bbkane/glib"
 	kvcrutch "github.com/bbkane/kvcrutch/lib"
-	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
 
 	"github.com/mitchellh/go-homedir"
@@ -26,6 +25,9 @@ var version = "devVersion"
 var commit = "devCommit"
 var date = "devDate"
 var builtBy = "devBuiltBy"
+
+//go:embed embedded/kvcrutch.yaml
+var embeddedConfig []byte
 
 type config struct {
 	Version                     string
@@ -109,28 +111,7 @@ func run() error {
 	}
 
 	if cmd == configCmdEditCmd.FullCommand() {
-		// read static file from executable or dev static directory
-		configFile := "kvcrutch.yaml"
-		fp, err := static.Static.Open(configFile)
-		if err != nil {
-			err = errors.Errorf("Can't open file: %#v\n", configFile)
-			sugarkane.Printw(os.Stderr,
-				"ERROR: can't open file",
-				"file", configFile,
-			)
-			return err
-		}
-		staticConfigBytes, err := ioutil.ReadAll(fp)
-		if err != nil {
-			err = errors.Errorf("Can't read file: %#v\n", staticConfigBytes)
-			sugarkane.Printw(os.Stderr,
-				"ERROR: can't read file",
-				"file", configFile,
-			)
-			return err
-		}
-
-		err = glib.EditFile(staticConfigBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
+		err = glib.EditFile(embeddedConfig, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
 		if err != nil {
 			sugarkane.Printw(os.Stderr,
 				"ERROR: Unable to edit config",
