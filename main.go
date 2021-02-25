@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bbkane/kvcrutch/grabbag"
+	"github.com/bbkane/glib"
 	kvcrutch "github.com/bbkane/kvcrutch/lib"
 	"github.com/bbkane/kvcrutch/static"
 	"github.com/bbkane/kvcrutch/sugarkane"
@@ -109,6 +109,7 @@ func run() error {
 	}
 
 	if cmd == configCmdEditCmd.FullCommand() {
+		// read static file from executable or dev static directory
 		configFile := "kvcrutch.yaml"
 		fp, err := static.Static.Open(configFile)
 		if err != nil {
@@ -119,9 +120,9 @@ func run() error {
 			)
 			return err
 		}
-		configBytes, err := ioutil.ReadAll(fp)
+		staticConfigBytes, err := ioutil.ReadAll(fp)
 		if err != nil {
-			err = errors.Errorf("Can't read file: %#v\n", configBytes)
+			err = errors.Errorf("Can't read file: %#v\n", staticConfigBytes)
 			sugarkane.Printw(os.Stderr,
 				"ERROR: can't read file",
 				"file", configFile,
@@ -129,7 +130,7 @@ func run() error {
 			return err
 		}
 
-		err = grabbag.EditFile(configBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
+		err = glib.EditFile(staticConfigBytes, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
 		if err != nil {
 			sugarkane.Printw(os.Stderr,
 				"ERROR: Unable to edit config",
@@ -137,7 +138,9 @@ func run() error {
 				"editorPath", *configCmdEditCmdEditorFlag,
 				"err", err,
 			)
+			return err
 		}
+		return nil
 	}
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,
