@@ -10,7 +10,7 @@ import (
 
 	"github.com/bbkane/glib"
 	kvcrutch "github.com/bbkane/kvcrutch/lib"
-	"github.com/bbkane/kvcrutch/sugarkane"
+	"github.com/bbkane/sugarkane"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"

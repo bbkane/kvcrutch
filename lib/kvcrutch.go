@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/keyvault/keyvault"
 	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/bbkane/kvcrutch/sugarkane"
+	"github.com/bbkane/sugarkane"
 	"github.com/pkg/errors"
 )
 
