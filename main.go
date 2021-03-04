@@ -91,7 +91,7 @@ func run() error {
 
 	certificateListCmd := certificateCmd.Command("list", "List all certificates in a keyvault")
 
-	certificateNewVersionCmd := certificateCmd.Command("new-version", "Create a new version of an existing certificate")
+	certificateNewVersionCmd := certificateCmd.Command("new-version", "Create a new version of an existing certificate. Preserves tags, unlike creating a new version from the web portal. This command is most useful after changing the Issuance Policy of an existing certificate.")
 	certificateNewVersionCmdNameFlag := certificateNewVersionCmd.Flag("name", "certificate name in keyvault. Example: my-cert").Short('n').Required().String()
 	certificateNewVersionSkipConfirmationFlag := certificateNewVersionCmd.Flag("skip-confirmation", "Create cert without prompting for confirmation").Bool()
 

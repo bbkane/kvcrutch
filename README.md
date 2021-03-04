@@ -65,9 +65,9 @@ $ kvcrutch certificate create \
 
 `kvcrutch certificate new-version` exists because creating a new version of a certificate from the web UI will **silently drop** any tags attached to the current certificate.
 
-I typically use `new-version` to create a new version of a certificate after I have changed the Issuance Policy from the web UI.
+This command is most useful after changing the *Issuance Policy* of an existing certificate.
 
-#### Example
+#### Example - Add a SAN to an existing cert's Issuance Policy and create a new version
 
 Add a SAN to the `new-version-example` certificate through the web UI:
 
