@@ -25,7 +25,7 @@ Writes [kvcrutch.yaml](./embedded/kvcrutch.yaml) if it doesn't yet exists
 to config path (defaults to `~/.config/kvcrutch.yaml`) and opens the file for
 editing. Specify default key vault name, default cert creation details, etc.
 here in the config. Pass `--editor /path/to/editor` to overwrite the default
-editor.
+editor. A config needs to be created before working with certificates.
 
 #### Example
 
