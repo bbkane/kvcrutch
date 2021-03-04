@@ -15,6 +15,8 @@ keyvault` isn't quite capable enough...
 
 Create an authorization file for `kvcrutch` with `az login`. Log in with the same credentials you'd use to view your Key Vault in the web interface.
 
+If you're logged into multiple subscriptions, use `az account set` to set the correct on as currently active.
+
 ## Commands
 
 ### `kvcrutch config edit`
