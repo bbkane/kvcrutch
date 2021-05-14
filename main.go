@@ -3,8 +3,10 @@ package main
 import (
 	"crypto/tls"
 	_ "embed"
+	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -62,6 +64,45 @@ func parseConfig(configBytes []byte) (*lumberjack.Logger, string, kvcrutch.CfgCe
 	return lumberjackLogger, cfg.VaultName, cfg.CertificateCreateParameters, nil
 }
 
+// downloadTextFile downloads a url to a filePath
+// sets accept header to text/plain
+// errors if folder doesn't exists or if file already created
+func downloadTextFile(filePath string, url string) error {
+	// O_EXCL - used with O_CREATE, file must not exist
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	client := http.DefaultClient
+	request, err := http.NewRequest(
+		// TODO: stuff ctx in here
+		"GET",
+		url,
+		nil,
+	)
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+	request.Header.Add("Accept", "text/plain")
+	response, err := client.Do(request)
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+	defer response.Body.Close()
+
+	_, err = io.Copy(file, response.Body)
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+
+	return nil
+}
+
 func run() error {
 
 	// parse the CLI args
@@ -75,6 +116,9 @@ func run() error {
 	configCmd := app.Command("config", "Config commands")
 	configCmdEditCmd := configCmd.Command("edit", "Edit or create configuration file. Uses $EDITOR as a fallback")
 	configCmdEditCmdEditorFlag := configCmdEditCmd.Flag("editor", "Path to editor").Short('e').String()
+
+	configCmdDownloadCmd := configCmd.Command("download", "Download config from a URL. Will not overwrite existing config")
+	configCmdDownloadCmdUrlFlag := configCmdDownloadCmd.Flag("url", "Example: https://example.com/kvcrutch.yaml").Required().String()
 
 	certificateCmd := app.Command("certificate", "Work with certificates")
 
@@ -123,6 +167,29 @@ func run() error {
 		}
 		return nil
 	}
+
+	if cmd == configCmdDownloadCmd.FullCommand() {
+		err = downloadTextFile(*appConfigPathFlag, *configCmdDownloadCmdUrlFlag)
+		if err != nil {
+			err = errors.WithStack(err)
+			sugarkane.Printw(
+				os.Stderr,
+				"ERROR: cannot download/write config",
+				"configPath", *appConfigPathFlag,
+				"url", *configCmdDownloadCmdUrlFlag,
+				"err", err,
+			)
+			return err
+		}
+		sugarkane.Printw(
+			os.Stdout,
+			"INFO: downloaded config!",
+			"configPath", *appConfigPathFlag,
+			"url", *configCmdDownloadCmdUrlFlag,
+		)
+		return nil
+	}
+
 	if cmd == versionCmd.FullCommand() {
 		sugarkane.Printw(os.Stdout,
 			"INFO: Version and build information",
