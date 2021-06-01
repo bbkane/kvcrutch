@@ -8,8 +8,9 @@ keyvault` isn't quite capable enough...
 
 - Homebrew: `brew install bbkane/tap/kvcrutch`
 - Download Mac/Linux/Windows executable: [GitHub releases](https://github.com/bbkane/kvcrutch/releases)
-- Build with [goreleaser](https://goreleaser.com/): `goreleaser --snapshot --skip-publish --rm-dist`
-- Build with `go`: `go build .`
+- Go Install: `go install github.com/bbkane/kvcrutch` (Note that this binary will lack version information)
+- Build locally with [goreleaser](https://goreleaser.com/): `goreleaser --snapshot --skip-publish --rm-dist`
+- Build locally with `go`: `go build .` (Note that this binary will lack version information)
 
 ## Login
 
