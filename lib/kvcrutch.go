@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/keyvault/keyvault"
 	kvauth "github.com/Azure/azure-sdk-for-go/services/keyvault/auth"
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/bbkane/sugarkane"
+	"github.com/bbkane/logos"
 	"github.com/pkg/errors"
 )
 
@@ -60,19 +60,19 @@ type FlagCertificateCreateParameters struct {
 	IssuerName       string
 }
 
-func LogAutorestRequest(sk *sugarkane.SugarKane) autorest.PrepareDecorator {
+func LogAutorestRequest(logger *logos.Logger) autorest.PrepareDecorator {
 	return func(p autorest.Preparer) autorest.Preparer {
 		return autorest.PreparerFunc(func(r *http.Request) (*http.Request, error) {
 			r, err := p.Prepare(r)
 			if err != nil {
 				err := errors.WithStack(err)
-				sk.Errorw(
+				logger.Errorw(
 					"autorest HTTP request error",
 					"err", err,
 				)
 			}
 			dump, _ := httputil.DumpRequestOut(r, true)
-			sk.Debugw(
+			logger.Debugw(
 				"autorest HTTP request",
 				"req", string(dump),
 			)
@@ -81,19 +81,19 @@ func LogAutorestRequest(sk *sugarkane.SugarKane) autorest.PrepareDecorator {
 	}
 }
 
-func LogAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
+func LogAutorestResponse(logger *logos.Logger) autorest.RespondDecorator {
 	return func(p autorest.Responder) autorest.Responder {
 		return autorest.ResponderFunc(func(r *http.Response) error {
 			err := p.Respond(r)
 			if err != nil {
 				err := errors.WithStack(err)
-				sk.Errorw(
+				logger.Errorw(
 					"autorest HTTP response error",
 					"err", err,
 				)
 			}
 			dump, _ := httputil.DumpResponse(r, true)
-			sk.Debugw(
+			logger.Debugw(
 				"autorest HTTP response",
 				"req", string(dump),
 			)
@@ -103,7 +103,7 @@ func LogAutorestResponse(sk *sugarkane.SugarKane) autorest.RespondDecorator {
 }
 
 func CertificateCreate(
-	sk *sugarkane.SugarKane,
+	logger *logos.Logger,
 	kvClient *keyvault.BaseClient,
 	vaultURL string,
 	timeout time.Duration,
@@ -129,7 +129,7 @@ func CertificateCreate(
 		_, err := kvClient.GetCertificate(ctx, vaultURL, certName, "")
 		if err == nil {
 			err = errors.Errorf("certificate already exists for certName: %#v\n", certName)
-			sk.Errorw(
+			logger.Errorw(
 				"certificate already exists for name. Pass `--new-version-ok` to create a new version",
 				"certName", certName,
 				"err", err,
@@ -141,7 +141,7 @@ func CertificateCreate(
 	if !skipConfirmation {
 		err := creationPrompt(vaultURL, &params)
 		if err != nil {
-			sk.Errorw(
+			logger.Errorw(
 				"Can't confirm creation",
 				"vaultURL", vaultURL,
 				"certName", certName,
@@ -163,7 +163,7 @@ func CertificateCreate(
 
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"certificate creation error",
 			"err", err,
 			"certName", certName,
@@ -171,7 +171,7 @@ func CertificateCreate(
 		return err
 	}
 
-	sk.Infow(
+	logger.Infow(
 		"certificate created",
 		"certName", certName,
 		"createdID", *result.ID,
@@ -285,13 +285,13 @@ func ParseTags(flagTags []string) (map[string]*string, error) {
 	return flagTagsMap, nil
 }
 
-func PrepareKV(sk *sugarkane.SugarKane) (*keyvault.BaseClient, error) {
+func PrepareKV(logger *logos.Logger) (*keyvault.BaseClient, error) {
 	kvClient := keyvault.New()
 	var err error
 	kvClient.Authorizer, err = kvauth.NewAuthorizerFromCLI()
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"keyvault authorization error. Log in with `az login`",
 			"err", err,
 		)
@@ -299,12 +299,12 @@ func PrepareKV(sk *sugarkane.SugarKane) (*keyvault.BaseClient, error) {
 	}
 
 	// https://github.com/Azure-Samples/azure-sdk-for-go-samples/blob/master/keyvault/examples/go-keyvault-msi-example.go
-	kvClient.RequestInspector = LogAutorestRequest(sk)
-	kvClient.ResponseInspector = LogAutorestResponse(sk)
+	kvClient.RequestInspector = LogAutorestRequest(logger)
+	kvClient.ResponseInspector = LogAutorestResponse(logger)
 	return &kvClient, nil
 }
 
-func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vaultURL string, timeout time.Duration) error {
+func CertificateList(logger *logos.Logger, kvClient *keyvault.BaseClient, vaultURL string, timeout time.Duration) error {
 
 	// TODO: this crosses boundaries as needed. If it does that lazily, will the context time out?
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -312,7 +312,7 @@ func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vau
 	certs, err := kvClient.GetCertificatesComplete(ctx, vaultURL, nil)
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"Can't get certificates",
 			"err", err,
 		)
@@ -326,7 +326,7 @@ func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vau
 		certJSON, err := json.MarshalIndent(cert, "", "  ")
 		if err != nil {
 			err := errors.WithStack(err)
-			sk.Errorw(
+			logger.Errorw(
 				"Can't marshall cert info",
 				"cert", cert,
 				"err", err,
@@ -339,7 +339,7 @@ func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vau
 		err = certs.NextWithContext(ctx)
 		if err != nil {
 			err := errors.WithStack(err)
-			sk.Errorw(
+			logger.Errorw(
 				"Can't advance certs list",
 				"certs", certs,
 				"err", err,
@@ -352,7 +352,7 @@ func CertificateList(sk *sugarkane.SugarKane, kvClient *keyvault.BaseClient, vau
 }
 
 func CertificateNewVersion(
-	sk *sugarkane.SugarKane,
+	logger *logos.Logger,
 	kvClient *keyvault.BaseClient,
 	vaultURL string,
 	certName string,
@@ -365,7 +365,7 @@ func CertificateNewVersion(
 	cert, err := kvClient.GetCertificate(ctx, vaultURL, certName, certVersion)
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"Can't get certificate",
 			"vaultURL", vaultURL,
 			"certName", certName,
@@ -383,7 +383,7 @@ func CertificateNewVersion(
 	if !skipConfirmation {
 		err := creationPrompt(vaultURL, &certCreateParams)
 		if err != nil {
-			sk.Errorw(
+			logger.Errorw(
 				"Can't confirm creation",
 				"vaultURL", vaultURL,
 				"certName", certName,
@@ -405,7 +405,7 @@ func CertificateNewVersion(
 
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"certificate creation error",
 			"err", err,
 			"certName", certName,
@@ -413,7 +413,7 @@ func CertificateNewVersion(
 		return err
 	}
 
-	sk.Infow(
+	logger.Infow(
 		"certificate created (new version)",
 		"certName", certName,
 		"createdID", *result.ID,

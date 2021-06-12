@@ -12,7 +12,7 @@ import (
 
 	"github.com/bbkane/glib"
 	kvcrutch "github.com/bbkane/kvcrutch/lib"
-	"github.com/bbkane/sugarkane"
+	"github.com/bbkane/logos"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -147,8 +147,8 @@ func run() error {
 	configPath, err := homedir.Expand(*appConfigPathFlag)
 	if err != nil {
 		err = errors.WithStack(err)
-		sugarkane.Printw(os.Stderr,
-			"ERROR: config error",
+		logos.Errorw(
+			"config error",
 			"err", err,
 		)
 		return err
@@ -157,8 +157,8 @@ func run() error {
 	if cmd == configCmdEditCmd.FullCommand() {
 		err = glib.EditFile(embeddedConfig, *appConfigPathFlag, *configCmdEditCmdEditorFlag)
 		if err != nil {
-			sugarkane.Printw(os.Stderr,
-				"ERROR: Unable to edit config",
+			logos.Errorw(
+				"Unable to edit config",
 				"configPath", *appConfigPathFlag,
 				"editorPath", *configCmdEditCmdEditorFlag,
 				"err", err,
@@ -172,18 +172,16 @@ func run() error {
 		err = downloadTextFile(*appConfigPathFlag, *configCmdDownloadCmdUrlFlag)
 		if err != nil {
 			err = errors.WithStack(err)
-			sugarkane.Printw(
-				os.Stderr,
-				"ERROR: cannot download/write config",
+			logos.Errorw(
+				"cannot download/write config",
 				"configPath", *appConfigPathFlag,
 				"url", *configCmdDownloadCmdUrlFlag,
 				"err", err,
 			)
 			return err
 		}
-		sugarkane.Printw(
-			os.Stdout,
-			"INFO: downloaded config!",
+		logos.Infow(
+			"downloaded config!",
 			"configPath", *appConfigPathFlag,
 			"url", *configCmdDownloadCmdUrlFlag,
 		)
@@ -191,8 +189,8 @@ func run() error {
 	}
 
 	if cmd == versionCmd.FullCommand() {
-		sugarkane.Printw(os.Stdout,
-			"INFO: Version and build information",
+		logos.Infow(
+			"Version and build information",
 			"builtBy", builtBy,
 			"commit", commit,
 			"date", date,
@@ -205,8 +203,8 @@ func run() error {
 	configBytes, cfgLoadErr := ioutil.ReadFile(configPath)
 	if cfgLoadErr != nil {
 		if cfgLoadErr != nil {
-			sugarkane.Printw(os.Stderr,
-				"ERROR: Config error - try `config edit`",
+			logos.Errorw(
+				"Config error - try `config edit`",
 				"cfgLoadErr", cfgLoadErr,
 				"cfgLoadErrMsg", cfgLoadErr.Error(),
 			)
@@ -216,20 +214,24 @@ func run() error {
 
 	lumberjackLogger, cfgVaultName, cfgCertCreateParams, cfgParseErr := parseConfig(configBytes)
 	if cfgParseErr != nil {
-		sugarkane.Printw(os.Stderr,
-			"ERROR: Can't parse config",
+		logos.Errorw(
+			"Can't parse config",
 			"err", cfgParseErr,
 		)
 		return cfgParseErr
 	}
 
 	// get a logger
-	sk := sugarkane.NewSugarKane(lumberjackLogger, os.Stderr, os.Stdout, zap.DebugLevel, version)
-	defer sk.Sync()
-	sk.LogOnPanic()
+	logger := logos.NewLogger(
+		logos.NewZapSugaredLogger(
+			lumberjackLogger, zap.DebugLevel, version,
+		),
+	)
+	defer logger.Sync()
+	logger.LogOnPanic()
 
 	// get a keyvault client
-	kvClient, err := kvcrutch.PrepareKV(sk)
+	kvClient, err := kvcrutch.PrepareKV(logger)
 	if err != nil {
 		err := errors.WithStack(err)
 		return err
@@ -239,7 +241,7 @@ func run() error {
 	timeout, err := time.ParseDuration(*appTimeout)
 	if err != nil {
 		err := errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"can't parse  --timeout",
 			"err", err,
 		)
@@ -262,7 +264,7 @@ func run() error {
 	)
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"can't connect to vault",
 			"vaultFQDN", vaultFQDN,
 			"port", port,
@@ -274,7 +276,7 @@ func run() error {
 	err = conn.Close()
 	if err != nil {
 		err = errors.WithStack(err)
-		sk.Errorw(
+		logger.Errorw(
 			"can't close connection",
 			"conn", conn,
 			"err", err,
@@ -289,7 +291,7 @@ func run() error {
 		flagTagsMap, err := kvcrutch.ParseTags(*certificateCreateCmdTagsFlag)
 		if err != nil {
 			err := errors.WithStack(err)
-			sk.Errorw(
+			logger.Errorw(
 				"flag parsing error",
 				"err", err,
 			)
@@ -305,7 +307,7 @@ func run() error {
 		}
 
 		return kvcrutch.CertificateCreate(
-			sk,
+			logger,
 			kvClient,
 			vaultURL,
 			timeout,
@@ -318,14 +320,14 @@ func run() error {
 
 	case certificateListCmd.FullCommand():
 		return kvcrutch.CertificateList(
-			sk,
+			logger,
 			kvClient,
 			vaultURL,
 			timeout,
 		)
 	case certificateNewVersionCmd.FullCommand():
 		return kvcrutch.CertificateNewVersion(
-			sk,
+			logger,
 			kvClient,
 			vaultURL,
 			*certificateNewVersionCmdNameFlag,
@@ -334,7 +336,7 @@ func run() error {
 		)
 	default:
 		err = errors.Errorf("Unknown command: %#v\n", cmd)
-		sk.Errorw(
+		logger.Errorw(
 			"Unknown command",
 			"cmd", cmd,
 			"err", err,
