@@ -1,3 +1,9 @@
+# Archival (2021-11-26)
+
+At this point, `az keyvault` is useful enough that I don't feel the need to support `kvcrutch` anymore. Creating certificates works well via the Portal, making a new version of a certificate carries along the tags now, and `az keyvault certificate list` (without page size flags) lists all the certificates in the Key Vault!
+
+I still think `kvcrutch` is the best way to create a certificate via the command line, but given the portal experience, I don't care enough to maintain `kvcrutch`, so I'm archiving `kvcrutch` :)
+
 # kvcrutch
 
 `kvcrutch` is a small tool for working with Azure Key Vaults and TLS
